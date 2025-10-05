@@ -12,11 +12,12 @@ async function bootstrap() {
   // CORS - Permitir requests desde frontend y Tailscale
   app.enableCors({
     origin: [
-      /\.vercel\.app$/, // Todos los dominios de Vercel
-      /\.ts\.net$/, // Todos los dominios de Tailscale
-      /\.trycloudflare\.com$/, // Cloudflare tunnels
-      'http://localhost:3001', // Desarrollo local
-      'http://localhost:5173', // Vite dev server
+      'https://another-america-projected-output.trycloudflare.com',
+      /\.vercel\.app$/,
+      /\.ts\.net$/,
+      /\.trycloudflare\.com$/,
+      'http://localhost:3001',
+      'http://localhost:5173',
     ],
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
