@@ -9,6 +9,21 @@ async function bootstrap() {
   // Prefijo global /api
   app.setGlobalPrefix('api');
 
+  // CORS - Permitir requests desde frontend y Tailscale
+  app.enableCors({
+    origin: [
+      'https://another-america-projected-output.trycloudflare.com',
+      /\.vercel\.app$/,
+      /\.ts\.net$/,
+      /\.trycloudflare\.com$/,
+      'http://localhost:3001',
+      'http://localhost:5173',
+    ],
+    credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Authorization, Accept',
+  });
+
   // ValidationPipe global con whitelist y forbidNonWhitelisted
   app.useGlobalPipes(
     new ValidationPipe({
