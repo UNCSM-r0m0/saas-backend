@@ -17,7 +17,7 @@ npm run build:prod
 
 echo ""
 echo -e "${YELLOW}2/3 Reiniciando con PM2...${NC}"
-pm2 restart saas-backend
+pm2 restart saas-api
 
 echo ""
 echo -e "${YELLOW}3/3 Verificando estado...${NC}"
@@ -27,6 +27,6 @@ echo ""
 echo -e "${GREEN}✅ BACKEND ACTUALIZADO${NC}"
 echo ""
 echo "📊 Ver logs en tiempo real:"
-echo "   pm2 logs saas-backend"
+echo "   pm2 logs saas-api"
 echo ""
 
