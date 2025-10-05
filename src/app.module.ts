@@ -6,6 +6,10 @@ import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { ChatModule } from './chat/chat.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { OllamaModule } from './ollama/ollama.module';
+import { UsageService } from './usage/usage.service';
 
 @Module({
   imports: [
@@ -30,8 +34,11 @@ import { AuthModule } from './auth/auth.module';
     PrismaModule,
     UsersModule,
     AuthModule,
+    ChatModule,
+    SubscriptionsModule,
+    OllamaModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, UsageService],
 })
 export class AppModule { }

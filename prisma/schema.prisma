@@ -23,6 +23,25 @@ enum AuthProvider {
   GITHUB
 }
 
+enum SubscriptionTier {
+  FREE // Anónimos: 3 mensajes
+  REGISTERED // Registrados: 50 mensajes/día
+  PREMIUM // Premium: 1000 mensajes/día + imágenes
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  EXPIRED
+  TRIALING
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
 // Models
 model User {
   id            String       @id @default(uuid())
@@ -40,6 +59,12 @@ model User {
   // Multitenancy
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Relations
+  subscription  Subscription?
+  conversations Conversation[]
+  messages      Message[]
+  usageRecords  UsageRecord[]
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -66,4 +91,96 @@ model Tenant {
 
   @@index([slug])
   @@map("tenants")
+}
+
+// Subscriptions (FREE, REGISTERED, PREMIUM)
+model Subscription {
+  id     String             @id @default(uuid())
+  userId String             @unique
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier   SubscriptionTier   @default(REGISTERED)
+  status SubscriptionStatus @default(ACTIVE)
+
+  // Stripe
+  stripeCustomerId       String?   @unique
+  stripeSubscriptionId   String?   @unique
+  stripePriceId          String?
+  stripeCurrentPeriodEnd DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@map("subscriptions")
+}
+
+// Conversaciones (solo para usuarios registrados)
+model Conversation {
+  id     String  @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title String @default("Nueva conversación")
+
+  // Relations
+  messages Message[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("conversations")
+}
+
+// Mensajes del chat
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  role           MessageRole
+  content        String       @db.Text
+  model          String       @default("deepseek-r1:7b")
+  tokensUsed     Int          @default(0)
+
+  // Attachments (solo premium)
+  attachments String[] // URLs de archivos adjuntos
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// Tracking de uso (para rate limiting)
+model UsageRecord {
+  id     String  @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Tracking por día
+  date         DateTime @db.Date
+  messageCount Int      @default(0)
+  tokensUsed   Int      @default(0)
+
+  // Para usuarios anónimos (por IP o fingerprint)
+  anonymousId String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@unique([anonymousId, date])
+  @@index([userId, date])
+  @@index([anonymousId, date])
+  @@map("usage_records")
 }

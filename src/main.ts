@@ -21,11 +21,14 @@ async function bootstrap() {
   // Configuración de Swagger
   const config = new DocumentBuilder()
     .setTitle('SaaS Backend API')
-    .setDescription('API para SaaS multitenancy con autenticación completa')
+    .setDescription(
+      'API SaaS con IA local (Ollama), autenticación multiestrategy y sistema de suscripciones',
+    )
     .setVersion('1.0')
     .addBearerAuth()
-    .addTag('auth', 'Endpoints de autenticación')
+    .addTag('auth', 'Autenticación (Local, Google, GitHub)')
     .addTag('users', 'Gestión de usuarios')
+    .addTag('chat', 'Chat con IA (Anónimos: 3 msg, Registrados: 10 msg, Premium: 1000 msg)')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
