@@ -12,12 +12,13 @@ async function bootstrap() {
   // CORS - Permitir requests desde frontend y Tailscale
   app.enableCors({
     origin: [
-      'https://api.r0lm0.dev',
-      /\.vercel\.app$/,
-      /\.ts\.net$/,
-      /\.trycloudflare\.com$/,
+      /https?:\/\/([a-z0-9-]+\.)*vercel\.app$/i,
+      /https?:\/\/([a-z0-9-]+\.)*ts\.net$/i,
+      /https?:\/\/([a-z0-9-]+\.)*trycloudflare\.com$/i,
+      /https?:\/\/([a-z0-9-]+\.)*ngrok-free\.(dev|app)$/i, // <= ngrok
       'http://localhost:3001',
       'http://localhost:5173',
+      'https://jeanett-uncolorable-pickily.ngrok-free.dev', // explícito (opcional)
     ],
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
