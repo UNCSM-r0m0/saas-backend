@@ -12,7 +12,7 @@ async function bootstrap() {
   // CORS - Permitir requests desde frontend y Tailscale
   app.enableCors({
     origin: [
-      'https://another-america-projected-output.trycloudflare.com',
+      'https://api.r0lm0.dev',
       /\.vercel\.app$/,
       /\.ts\.net$/,
       /\.trycloudflare\.com$/,
