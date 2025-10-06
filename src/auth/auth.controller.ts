@@ -51,7 +51,7 @@ export class AuthController {
         res.cookie('auth_token', access_token, {
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'none',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
@@ -87,7 +87,7 @@ export class AuthController {
         res.cookie('auth_token', access_token, {
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'none',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
@@ -114,7 +114,7 @@ export class AuthController {
         res.cookie('auth_token', access_token, {
             httpOnly: true,
             secure: true,
-            sameSite: 'lax',
+            sameSite: 'none',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
