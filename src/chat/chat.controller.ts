@@ -22,6 +22,7 @@ import { ChatResponseDto } from './dto/chat-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
+import { OpenAIService } from '../openai/openai.service';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -30,6 +31,7 @@ export class ChatController {
         private readonly chatService: ChatService,
         private readonly ollamaService: OllamaService,
         private readonly geminiService: GeminiService,
+        private readonly openaiService: OpenAIService,
     ) { }
 
     /**
@@ -217,6 +219,15 @@ export class ChatController {
                 features: ['text-generation', 'multimodal', 'streaming'],
                 description: 'Modelo avanzado de Google con capacidades multimodales',
                 defaultModel: 'gemini-2.0-flash-exp'
+            },
+            {
+                id: 'openai',
+                name: 'GPT-3.5 Turbo',
+                provider: 'OpenAI',
+                available: this.openaiService.isAvailable(),
+                features: ['text-generation', 'streaming', 'chat-completions'],
+                description: 'Modelo de OpenAI optimizado para chat y conversaciones',
+                defaultModel: 'gpt-3.5-turbo'
             }
         ];
 

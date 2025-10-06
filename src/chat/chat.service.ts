@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
+import { OpenAIService } from '../openai/openai.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsageService } from '../usage/usage.service';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -20,6 +21,7 @@ export class ChatService {
         private prisma: PrismaService,
         private ollamaService: OllamaService,
         private geminiService: GeminiService,
+        private openaiService: OpenAIService,
         private subscriptionsService: SubscriptionsService,
         private usageService: UsageService,
     ) { }
@@ -111,6 +113,22 @@ export class ChatService {
             aiResponse = geminiResponse.response;
             tokensUsed = geminiResponse.tokensUsed;
             modelUsed = geminiResponse.model;
+        } else if (selectedModel === 'openai') {
+            // Usar OpenAI
+            if (!this.openaiService.isAvailable()) {
+                throw new ForbiddenException('OpenAI model is not available. Please configure OPENAI_API_KEY.');
+            }
+
+            const openaiResponse = await this.openaiService.generateResponse(dto.content, {
+                maxTokens: limits.maxTokensPerMessage,
+                temperature: 0.7,
+                systemPrompt: this.buildSystemPrompt(tier),
+                model: 'gpt-3.5-turbo',
+            });
+
+            aiResponse = openaiResponse.response;
+            tokensUsed = openaiResponse.tokensUsed;
+            modelUsed = openaiResponse.model;
         } else {
             // Usar Ollama (por defecto)
             const ollamaMessages = [
