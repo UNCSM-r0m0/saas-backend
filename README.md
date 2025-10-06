@@ -341,3 +341,7 @@ Probar endpoints:
 ## ngrok config add-authtoken 33fRwxM1DsbGwFwgd7treLwkIQx_cPBMkL5CTxU8UhECMXkM
 
 ## npm run dev -- --port 5173 --strictPort true
+
+## systemctl status ollama
+
+## ollama run deepseek-r1:7b
