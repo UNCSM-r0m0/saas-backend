@@ -4,7 +4,9 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true, // Necesario para webhooks de Stripe
+  });
 
   // Prefijo global /api
   app.setGlobalPrefix('api');
@@ -45,6 +47,7 @@ async function bootstrap() {
     .addTag('auth', 'Autenticación (Local, Google, GitHub)')
     .addTag('users', 'Gestión de usuarios')
     .addTag('chat', 'Chat con IA (Anónimos: 3 msg, Registrados: 10 msg, Premium: 1000 msg)')
+    .addTag('stripe', 'Pagos y suscripciones con Stripe')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
