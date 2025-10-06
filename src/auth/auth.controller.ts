@@ -74,19 +74,12 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Para testing: mostrar el token directamente
-        // Comenta esto en producción y descomenta el redirect
-        return res.json({
-            message: '✅ Google OAuth Login Successful',
-            access_token,
-            user: userData,
-            instructions: 'Copia el access_token y úsalo en Swagger con el botón Authorize',
-        });
+        // Redirigir al frontend con el token
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const redirectUrl = `${frontendUrl}/auth/callback?token=${access_token}`;
 
-        // Para producción: descomentar esto
-        // return res.redirect(
-        //   `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth/callback?token=${access_token}`,
-        // );
+        console.log('Redirecting to:', redirectUrl);
+        return res.redirect(redirectUrl);
     }
 
     // GitHub OAuth
@@ -104,18 +97,11 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Para testing: mostrar el token directamente
-        // Comenta esto en producción y descomenta el redirect
-        return res.json({
-            message: '✅ GitHub OAuth Login Successful',
-            access_token,
-            user: userData,
-            instructions: 'Copia el access_token y úsalo en Swagger con el botón Authorize',
-        });
+        // Redirigir al frontend con el token
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const redirectUrl = `${frontendUrl}/auth/callback?token=${access_token}`;
 
-        // Para producción: descomentar esto
-        // return res.redirect(
-        //   `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth/callback?token=${access_token}`,
-        // );
+        console.log('Redirecting to:', redirectUrl);
+        return res.redirect(redirectUrl);
     }
 }
