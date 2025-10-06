@@ -333,3 +333,7 @@ Ver logs en tiempo real:
 Actualizar código y reiniciar:
 Solo reconstruir:
 Probar endpoints:
+
+#####
+
+## ngrok http 3000 --domain=jeanett-uncolorable-pickily.ngrok-free.dev
