@@ -116,19 +116,44 @@ export class ChatService {
         } else if (selectedModel === 'openai') {
             // Usar OpenAI
             if (!this.openaiService.isAvailable()) {
-                throw new ForbiddenException('OpenAI model is not available. Please configure OPENAI_API_KEY.');
+                throw new ForbiddenException({
+                    message: 'OpenAI model is not available. Please configure OPENAI_API_KEY.',
+                    errorCode: 'AI_MODEL_UNAVAILABLE',
+                });
             }
 
-            const openaiResponse = await this.openaiService.generateResponse(dto.content, {
-                maxTokens: limits.maxTokensPerMessage,
-                temperature: 0.7,
-                systemPrompt: this.buildSystemPrompt(tier),
-                model: 'gpt-3.5-turbo',
-            });
+            try {
+                const openaiResponse = await this.openaiService.generateResponse(dto.content, {
+                    maxTokens: limits.maxTokensPerMessage,
+                    temperature: 0.7,
+                    systemPrompt: this.buildSystemPrompt(tier),
+                    model: 'gpt-3.5-turbo',
+                });
 
-            aiResponse = openaiResponse.response;
-            tokensUsed = openaiResponse.tokensUsed;
-            modelUsed = openaiResponse.model;
+                aiResponse = openaiResponse.response;
+                tokensUsed = openaiResponse.tokensUsed;
+                modelUsed = openaiResponse.model;
+            } catch (error) {
+                // Si OpenAI falla, intentar con Ollama como fallback
+                this.logger.warn(`OpenAI failed, falling back to Ollama: ${error.message}`);
+
+                const ollamaMessages = [
+                    ...history.map((m) => ({
+                        role: m.role as 'user' | 'assistant' | 'system',
+                        content: m.content,
+                    })),
+                    { role: 'user' as const, content: dto.content },
+                ];
+
+                const ollamaResponse = await this.ollamaService.generate(
+                    ollamaMessages,
+                    limits.maxTokensPerMessage,
+                );
+
+                aiResponse = ollamaResponse.content;
+                tokensUsed = ollamaResponse.tokensUsed;
+                modelUsed = 'ollama-fallback';
+            }
         } else {
             // Usar Ollama (por defecto)
             const ollamaMessages = [
