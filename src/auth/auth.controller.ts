@@ -74,19 +74,10 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Para testing: mostrar el token directamente
-        // Comenta esto en producción y descomenta el redirect
-        return res.json({
-            message: '✅ Google OAuth Login Successful',
-            access_token,
-            user: userData,
-            instructions: 'Copia el access_token y úsalo en Swagger con el botón Authorize',
-        });
-
-        // Para producción: descomentar esto
-        // return res.redirect(
-        //   `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth/callback?token=${access_token}`,
-        // );
+        // Redirigir al frontend con el token
+        return res.redirect(
+            `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${access_token}`,
+        );
     }
 
     // GitHub OAuth
@@ -106,16 +97,9 @@ export class AuthController {
 
         // Para testing: mostrar el token directamente
         // Comenta esto en producción y descomenta el redirect
-        return res.json({
-            message: '✅ GitHub OAuth Login Successful',
-            access_token,
-            user: userData,
-            instructions: 'Copia el access_token y úsalo en Swagger con el botón Authorize',
-        });
-
-        // Para producción: descomentar esto
-        // return res.redirect(
-        //   `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth/callback?token=${access_token}`,
-        // );
+        // Redirigir al frontend con el token
+        return res.redirect(
+            `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${access_token}`,
+        );
     }
 }
