@@ -13,8 +13,9 @@ export class StripeService {
         private readonly prisma: PrismaService,
     ) {
         const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-        if (!secretKey) {
-            throw new Error('STRIPE_SECRET_KEY is required');
+        if (!secretKey || secretKey === '') {
+            this.logger.warn('STRIPE_SECRET_KEY not configured, Stripe features will be disabled');
+            return;
         }
 
         this.stripe = new Stripe(secretKey, {
@@ -26,6 +27,10 @@ export class StripeService {
      * Crear sesión de checkout para suscripción premium
      */
     async createCheckoutSession(userId: string, priceId: string): Promise<Stripe.Checkout.Session> {
+        if (!this.stripe) {
+            throw new Error('Stripe not configured. Please set STRIPE_SECRET_KEY in environment variables.');
+        }
+
         try {
             const user = await this.prisma.user.findUnique({
                 where: { id: userId },
@@ -69,6 +74,10 @@ export class StripeService {
      * Crear portal de facturación para gestionar suscripción
      */
     async createBillingPortalSession(userId: string): Promise<Stripe.BillingPortal.Session> {
+        if (!this.stripe) {
+            throw new Error('Stripe not configured. Please set STRIPE_SECRET_KEY in environment variables.');
+        }
+
         try {
             const user = await this.prisma.user.findUnique({
                 where: { id: userId },
