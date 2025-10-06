@@ -23,6 +23,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
+import { DeepSeekService } from '../deepseek/deepseek.service';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -32,6 +33,7 @@ export class ChatController {
         private readonly ollamaService: OllamaService,
         private readonly geminiService: GeminiService,
         private readonly openaiService: OpenAIService,
+        private readonly deepseekService: DeepSeekService,
     ) { }
 
     /**
@@ -228,6 +230,15 @@ export class ChatController {
                 features: ['text-generation', 'streaming', 'chat-completions'],
                 description: 'Modelo de OpenAI optimizado para chat y conversaciones',
                 defaultModel: 'gpt-4o-mini'
+            },
+            {
+                id: 'deepseek',
+                name: 'DeepSeek Chat',
+                provider: 'DeepSeek',
+                available: this.deepseekService.isAvailable(),
+                features: ['text-generation', 'cost-effective', 'high-performance'],
+                description: 'Modelo de DeepSeek con excelente relación precio-calidad',
+                defaultModel: 'deepseek-chat'
             }
         ];
 

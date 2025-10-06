@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
+import { DeepSeekService } from '../deepseek/deepseek.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsageService } from '../usage/usage.service';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -22,6 +23,7 @@ export class ChatService {
         private ollamaService: OllamaService,
         private geminiService: GeminiService,
         private openaiService: OpenAIService,
+        private deepseekService: DeepSeekService,
         private subscriptionsService: SubscriptionsService,
         private usageService: UsageService,
     ) { }
@@ -136,6 +138,47 @@ export class ChatService {
             } catch (error) {
                 // Si OpenAI falla, intentar con Ollama como fallback
                 this.logger.warn(`OpenAI failed, falling back to Ollama: ${error.message}`);
+
+                const ollamaMessages = [
+                    ...history.map((m) => ({
+                        role: m.role as 'user' | 'assistant' | 'system',
+                        content: m.content,
+                    })),
+                    { role: 'user' as const, content: dto.content },
+                ];
+
+                const ollamaResponse = await this.ollamaService.generate(
+                    ollamaMessages,
+                    limits.maxTokensPerMessage,
+                );
+
+                aiResponse = ollamaResponse.content;
+                tokensUsed = ollamaResponse.tokensUsed;
+                modelUsed = 'ollama-fallback';
+            }
+        } else if (selectedModel === 'deepseek') {
+            // Usar DeepSeek
+            if (!this.deepseekService.isAvailable()) {
+                throw new ForbiddenException({
+                    message: 'DeepSeek model is not available. Please configure DEEPSEEK_API_KEY.',
+                    errorCode: 'AI_MODEL_UNAVAILABLE',
+                });
+            }
+
+            try {
+                const deepseekResponse = await this.deepseekService.generateResponse(dto.content, {
+                    maxTokens: limits.maxTokensPerMessage,
+                    temperature: 0.7,
+                    systemPrompt: this.buildSystemPrompt(tier),
+                    model: 'deepseek-chat',
+                });
+
+                aiResponse = deepseekResponse.response;
+                tokensUsed = deepseekResponse.tokensUsed;
+                modelUsed = deepseekResponse.model;
+            } catch (error) {
+                // Si DeepSeek falla, intentar con Ollama como fallback
+                this.logger.warn(`DeepSeek failed, falling back to Ollama: ${error.message}`);
 
                 const ollamaMessages = [
                     ...history.map((m) => ({

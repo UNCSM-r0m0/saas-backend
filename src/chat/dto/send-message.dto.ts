@@ -28,11 +28,11 @@ export class SendMessageDto {
 
     @ApiPropertyOptional({
         example: 'ollama',
-        description: 'Modelo de IA a usar: ollama (local), gemini (Google) o openai (OpenAI)',
-        enum: ['ollama', 'gemini', 'openai'],
+        description: 'Modelo de IA a usar: ollama (local), gemini (Google), openai (OpenAI) o deepseek (DeepSeek)',
+        enum: ['ollama', 'gemini', 'openai', 'deepseek'],
     })
     @IsString()
     @IsOptional()
-    model?: 'ollama' | 'gemini' | 'openai';
+    model?: 'ollama' | 'gemini' | 'openai' | 'deepseek';
 }
 

@@ -13,6 +13,7 @@ import { UsageService } from './usage/usage.service';
 import { StripeModule } from './stripe/stripe.module';
 import { GeminiModule } from './gemini/gemini.module';
 import { OpenAIModule } from './openai/openai.module';
+import { DeepSeekModule } from './deepseek/deepseek.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { OpenAIModule } from './openai/openai.module';
         STRIPE_PREMIUM_PRICE_ID: Joi.string().allow('').optional(),
         GEMINI_API_KEY: Joi.string().allow('').optional(),
         OPENAI_API_KEY: Joi.string().allow('').optional(),
+        DEEPSEEK_API_KEY: Joi.string().allow('').optional(),
         MAX_FILE_SIZE_MB: Joi.number().default(10),
         ALLOWED_FILE_TYPES: Joi.string().default('image/jpeg,image/png,image/gif,image/webp'),
         ADMIN_EMAIL: Joi.string().default('admin@saas.com'),
@@ -61,6 +63,7 @@ import { OpenAIModule } from './openai/openai.module';
     StripeModule,
     GeminiModule,
     OpenAIModule,
+    DeepSeekModule,
   ],
   controllers: [AppController],
   providers: [AppService, UsageService],
