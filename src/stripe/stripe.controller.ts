@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { StripeService } from './stripe.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ClientTypeGuard } from '../common/guards/client-type.guard';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 
@@ -32,7 +33,7 @@ export class StripeController {
      * Crear sesión de checkout para suscripción premium
      */
     @Post('create-checkout-session')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Crear sesión de checkout para suscripción premium',
@@ -80,7 +81,7 @@ export class StripeController {
      * Crear sesión del portal de facturación
      */
     @Post('create-portal-session')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Crear sesión del portal de facturación',
@@ -109,7 +110,7 @@ export class StripeController {
      * Obtener información de suscripción del usuario
      */
     @Get('subscription')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Obtener información de suscripción',

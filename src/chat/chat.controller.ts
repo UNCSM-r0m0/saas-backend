@@ -20,6 +20,7 @@ import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatResponseDto } from './dto/chat-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ClientTypeGuard } from '../common/guards/client-type.guard';
 import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
@@ -65,7 +66,7 @@ export class ChatController {
      * Enviar mensaje (solo usuarios registrados con JWT)
      */
     @Post('message/authenticated')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Enviar mensaje autenticado (guarda historial)',
@@ -82,7 +83,7 @@ export class ChatController {
      * Listar conversaciones del usuario
      */
     @Get('conversations')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Listar conversaciones del usuario' })
     @ApiResponse({ status: 200, description: 'Lista de conversaciones' })
@@ -94,7 +95,7 @@ export class ChatController {
      * Obtener conversación específica
      */
     @Get('conversations/:id')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Obtener una conversación con todos sus mensajes' })
     @ApiResponse({ status: 200, description: 'Conversación completa' })
@@ -107,7 +108,7 @@ export class ChatController {
      * Actualizar título de conversación
      */
     @Patch('conversations/:id/title')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Actualizar título de conversación' })
     @ApiResponse({ status: 200, description: 'Título actualizado' })

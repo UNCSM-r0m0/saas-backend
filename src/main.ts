@@ -3,30 +3,26 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import cookieParser from 'cookie-parser';
+import { cookieAuthMiddleware } from './common/middleware/cookie-auth.middleware';
+import { corsOptions } from './common/config/cors.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true, // Necesario para webhooks de Stripe
   });
 
+  // Cookies
+  app.use(cookieParser());
+
   // Prefijo global /api
   app.setGlobalPrefix('api');
 
-  // CORS - Permitir requests desde frontend y Tailscale
-  app.enableCors({
-    origin: [
-      /https?:\/\/([a-z0-9-]+\.)*vercel\.app$/i,
-      /https?:\/\/([a-z0-9-]+\.)*ts\.net$/i,
-      /https?:\/\/([a-z0-9-]+\.)*trycloudflare\.com$/i,
-      /https?:\/\/([a-z0-9-]+\.)*ngrok-free\.(dev|app)$/i,
-      'http://localhost:3001',
-      'http://localhost:5173',
-      'https://jeanett-uncolorable-pickily.ngrok-free.dev',
-    ],
-    credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type, Authorization, Accept, ngrok-skip-browser-warning',
-  });
+  // CORS - configurado en archivo dedicado
+  app.enableCors(corsOptions);
+
+  // Middleware: propagar cookie auth_token a Authorization si no viene
+  app.use(cookieAuthMiddleware);
 
   // Filtro de excepciones global
   app.useGlobalFilters(new HttpExceptionFilter());

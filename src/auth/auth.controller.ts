@@ -20,6 +20,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ClientTypeGuard } from '../common/guards/client-type.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { GithubAuthGuard } from './guards/github-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -45,11 +46,19 @@ export class AuthController {
     @ApiOperation({ summary: 'Login with email and password' })
     @ApiResponse({ status: 200, description: 'Login successful' })
     @ApiResponse({ status: 401, description: 'Invalid credentials' })
-    async login(@Body() loginDto: LoginDto, @CurrentUser() user: any) {
-        return this.authService.login(user);
+    async login(@Body() loginDto: LoginDto, @CurrentUser() user: any, @Res() res: Response) {
+        const { access_token, user: userData } = await this.authService.login(user);
+        res.cookie('auth_token', access_token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        return res.json({ user: userData });
     }
 
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @Get('profile')
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get current user profile' })
@@ -74,11 +83,16 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Redirigir al frontend con el token
-        const redirectUrl = `http://localhost:5173/auth/callback?token=${access_token}`;
-
-        console.log('Redirecting to:', redirectUrl);
-        return res.redirect(redirectUrl);
+        // Set cookie y redirigir sin token en URL
+        res.cookie('auth_token', access_token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
     // GitHub OAuth
@@ -96,10 +110,22 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Redirigir al frontend con el token
-        const redirectUrl = `http://localhost:5173/auth/callback?token=${access_token}`;
+        // Set cookie y redirigir sin token
+        res.cookie('auth_token', access_token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return res.redirect(`${frontendUrl}/auth/callback`);
+    }
 
-        console.log('Redirecting to:', redirectUrl);
-        return res.redirect(redirectUrl);
+    @Post('logout')
+    @ApiOperation({ summary: 'Logout (borra cookie de autenticación)' })
+    async logout(@Res() res: Response) {
+        res.clearCookie('auth_token', { path: '/' });
+        return res.json({ success: true });
     }
 }
