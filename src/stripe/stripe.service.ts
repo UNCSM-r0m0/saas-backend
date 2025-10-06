@@ -50,7 +50,7 @@ export class StripeService {
                     },
                 ],
                 mode: 'subscription',
-                success_url: `${this.configService.get('FRONTEND_URL')}/success?session_id={CHECKOUT_SESSION_ID}`,
+                success_url: `https://jeanett-uncolorable-pickily.ngrok-free.dev/api/success?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${this.configService.get('FRONTEND_URL')}/cancel`,
                 metadata: {
                     userId: userId,
