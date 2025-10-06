@@ -5,7 +5,7 @@
 # Descripción: Administra la aplicación NestJS con PM2
 
 APP_NAME="saas-backend"
-PROJECT_DIR="/mnt/d/WORKSPACES/NESTJS/unscm/saas-backend"
+PROJECT_DIR="/mnt/d/WORKSPACES/NESTJS/chat/saas-backend"
 
 # Colores para output
 RED='\033[0;31m'
