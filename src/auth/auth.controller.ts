@@ -48,10 +48,11 @@ export class AuthController {
     @ApiResponse({ status: 401, description: 'Invalid credentials' })
     async login(@Body() loginDto: LoginDto, @CurrentUser() user: any, @Res() res: Response) {
         const { access_token, user: userData } = await this.authService.login(user);
+        const isProduction = process.env.NODE_ENV === 'production';
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true,
-            sameSite: 'none',
+            secure: isProduction, // false para localhost
+            sameSite: isProduction ? 'none' : 'lax', // 'lax' para localhost
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
@@ -84,10 +85,11 @@ export class AuthController {
         const { access_token, user: userData } = await this.authService.login(user);
 
         // Set cookie y redirigir sin token en URL
+        const isProduction = process.env.NODE_ENV === 'production';
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true,
-            sameSite: 'none',
+            secure: isProduction, // false para localhost
+            sameSite: isProduction ? 'none' : 'lax', // 'lax' para localhost
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
@@ -111,10 +113,11 @@ export class AuthController {
         const { access_token, user: userData } = await this.authService.login(user);
 
         // Set cookie y redirigir sin token
+        const isProduction = process.env.NODE_ENV === 'production';
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true,
-            sameSite: 'none',
+            secure: isProduction, // false para localhost
+            sameSite: isProduction ? 'none' : 'lax', // 'lax' para localhost
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });

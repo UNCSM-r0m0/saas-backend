@@ -9,6 +9,15 @@ export interface JwtPayload {
     role: string;
 }
 
+// Función personalizada para extraer JWT de cookies
+const cookieExtractor = (req: any) => {
+    let token = null;
+    if (req && req.cookies) {
+        token = req.cookies['auth_token'];
+    }
+    return token;
+};
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
     constructor(private configService: ConfigService) {
@@ -17,7 +26,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             throw new Error('JWT_SECRET is not defined in environment variables');
         }
         super({
-            jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+            jwtFromRequest: ExtractJwt.fromExtractors([
+                cookieExtractor, // Primero intenta extraer de cookies
+                ExtractJwt.fromAuthHeaderAsBearerToken(), // Fallback al header Authorization
+            ]),
             ignoreExpiration: false,
             secretOrKey: secret,
         });

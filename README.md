@@ -337,3 +337,7 @@ Probar endpoints:
 #####
 
 ## ngrok http 3000 --domain=jeanett-uncolorable-pickily.ngrok-free.dev
+
+## ngrok config add-authtoken 33fRwxM1DsbGwFwgd7treLwkIQx_cPBMkL5CTxU8UhECMXkM
+
+## npm run dev -- --port 5173 --strictPort true
