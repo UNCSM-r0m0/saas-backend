@@ -320,3 +320,16 @@ Este proyecto es privado y no tiene licencia pública.
 ---
 
 ⭐ Si te gusta este proyecto, dale una estrella en GitHub!
+
+#########
+🚀 COMANDOS DISPONIBLES:
+Para usar el script, ejecuta en WSL:
+Comandos principales:
+Iniciar la aplicación:
+Detener la aplicación:
+Reiniciar la aplicación:
+Ver estado:
+Ver logs en tiempo real:
+Actualizar código y reiniciar:
+Solo reconstruir:
+Probar endpoints:

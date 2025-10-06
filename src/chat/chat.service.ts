@@ -6,6 +6,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OllamaService } from '../ollama/ollama.service';
+import { GeminiService } from '../gemini/gemini.service';
+import { OpenAIService } from '../openai/openai.service';
+import { DeepSeekService } from '../deepseek/deepseek.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsageService } from '../usage/usage.service';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -18,6 +21,9 @@ export class ChatService {
     constructor(
         private prisma: PrismaService,
         private ollamaService: OllamaService,
+        private geminiService: GeminiService,
+        private openaiService: OpenAIService,
+        private deepseekService: DeepSeekService,
         private subscriptionsService: SubscriptionsService,
         private usageService: UsageService,
     ) { }
@@ -86,21 +92,130 @@ export class ChatService {
             ? await this.getConversationHistory(conversationId!)
             : [];
 
-        // 6. Preparar mensajes para Ollama
-        const ollamaMessages = [
-            ...history.map((m) => ({
-                role: m.role as 'user' | 'assistant' | 'system',
-                content: m.content,
-            })),
-            { role: 'user' as const, content: dto.content },
-        ];
+        // 6. Determinar modelo a usar (por defecto: ollama)
+        const selectedModel = dto.model || 'ollama';
 
-        // 7. Generar respuesta con Ollama
-        const { content: aiResponse, tokensUsed } =
-            await this.ollamaService.generate(
+        // 7. Generar respuesta según el modelo seleccionado
+        let aiResponse: string;
+        let tokensUsed: number;
+        let modelUsed: string;
+
+        if (selectedModel === 'gemini') {
+            // Usar Gemini
+            if (!this.geminiService.isAvailable()) {
+                throw new ForbiddenException('Gemini model is not available. Please configure GEMINI_API_KEY.');
+            }
+
+            const geminiResponse = await this.geminiService.generateResponse(dto.content, {
+                maxTokens: limits.maxTokensPerMessage,
+                temperature: 0.7,
+                systemPrompt: this.buildSystemPrompt(tier),
+            });
+
+            aiResponse = geminiResponse.response;
+            tokensUsed = geminiResponse.tokensUsed;
+            modelUsed = geminiResponse.model;
+        } else if (selectedModel === 'openai') {
+            // Usar OpenAI
+            if (!this.openaiService.isAvailable()) {
+                throw new ForbiddenException({
+                    message: 'OpenAI model is not available. Please configure OPENAI_API_KEY.',
+                    errorCode: 'AI_MODEL_UNAVAILABLE',
+                });
+            }
+
+            try {
+                const openaiResponse = await this.openaiService.generateResponse(dto.content, {
+                    maxTokens: limits.maxTokensPerMessage,
+                    temperature: 0.7,
+                    systemPrompt: this.buildSystemPrompt(tier),
+                    model: 'gpt-4o-mini',
+                });
+
+                aiResponse = openaiResponse.response;
+                tokensUsed = openaiResponse.tokensUsed;
+                modelUsed = openaiResponse.model;
+            } catch (error) {
+                // Si OpenAI falla, intentar con Ollama como fallback
+                this.logger.warn(`OpenAI failed, falling back to Ollama: ${error.message}`);
+
+                const ollamaMessages = [
+                    ...history.map((m) => ({
+                        role: m.role as 'user' | 'assistant' | 'system',
+                        content: m.content,
+                    })),
+                    { role: 'user' as const, content: dto.content },
+                ];
+
+                const ollamaResponse = await this.ollamaService.generate(
+                    ollamaMessages,
+                    limits.maxTokensPerMessage,
+                );
+
+                aiResponse = ollamaResponse.content;
+                tokensUsed = ollamaResponse.tokensUsed;
+                modelUsed = 'ollama-fallback';
+            }
+        } else if (selectedModel === 'deepseek') {
+            // Usar DeepSeek
+            if (!this.deepseekService.isAvailable()) {
+                throw new ForbiddenException({
+                    message: 'DeepSeek model is not available. Please configure DEEPSEEK_API_KEY.',
+                    errorCode: 'AI_MODEL_UNAVAILABLE',
+                });
+            }
+
+            try {
+                const deepseekResponse = await this.deepseekService.generateResponse(dto.content, {
+                    maxTokens: limits.maxTokensPerMessage,
+                    temperature: 0.7,
+                    systemPrompt: this.buildSystemPrompt(tier),
+                    model: 'deepseek-chat',
+                });
+
+                aiResponse = deepseekResponse.response;
+                tokensUsed = deepseekResponse.tokensUsed;
+                modelUsed = deepseekResponse.model;
+            } catch (error) {
+                // Si DeepSeek falla, intentar con Ollama como fallback
+                this.logger.warn(`DeepSeek failed, falling back to Ollama: ${error.message}`);
+
+                const ollamaMessages = [
+                    ...history.map((m) => ({
+                        role: m.role as 'user' | 'assistant' | 'system',
+                        content: m.content,
+                    })),
+                    { role: 'user' as const, content: dto.content },
+                ];
+
+                const ollamaResponse = await this.ollamaService.generate(
+                    ollamaMessages,
+                    limits.maxTokensPerMessage,
+                );
+
+                aiResponse = ollamaResponse.content;
+                tokensUsed = ollamaResponse.tokensUsed;
+                modelUsed = 'ollama-fallback';
+            }
+        } else {
+            // Usar Ollama (por defecto)
+            const ollamaMessages = [
+                ...history.map((m) => ({
+                    role: m.role as 'user' | 'assistant' | 'system',
+                    content: m.content,
+                })),
+                { role: 'user' as const, content: dto.content },
+            ];
+
+            const ollamaResponse = await this.ollamaService.generate(
                 ollamaMessages,
                 limits.maxTokensPerMessage,
             );
+
+            aiResponse = ollamaResponse.content;
+            tokensUsed = ollamaResponse.tokensUsed;
+            modelUsed = 'ollama';
+        }
 
         // 8. Guardar respuesta del asistente (solo si es registrado)
         let assistantMessage;
@@ -112,6 +227,7 @@ export class ChatService {
                     role: MessageRole.ASSISTANT,
                     content: aiResponse,
                     tokensUsed,
+                    model: modelUsed,
                 },
             });
         }
@@ -241,6 +357,22 @@ export class ChatService {
             where: { id: conversationId },
             data: { title },
         });
+    }
+
+    /**
+     * Construye el prompt del sistema según el tier del usuario
+     */
+    private buildSystemPrompt(tier: SubscriptionTier): string {
+        const basePrompt = 'Eres un asistente de IA útil y amigable. Responde de manera clara y concisa.';
+
+        switch (tier) {
+            case 'PREMIUM':
+                return `${basePrompt} Tienes acceso completo a todas las funcionalidades, incluyendo análisis de imágenes y respuestas detalladas.`;
+            case 'REGISTERED':
+                return `${basePrompt} Eres un usuario registrado con acceso a historial de conversaciones.`;
+            default:
+                return `${basePrompt} Eres un usuario anónimo con acceso limitado.`;
+        }
     }
 
     /**
