@@ -127,7 +127,7 @@ export class ChatService {
                     maxTokens: limits.maxTokensPerMessage,
                     temperature: 0.7,
                     systemPrompt: this.buildSystemPrompt(tier),
-                    model: 'gpt-3.5-turbo',
+                    model: 'gpt-4o-mini',
                 });
 
                 aiResponse = openaiResponse.response;

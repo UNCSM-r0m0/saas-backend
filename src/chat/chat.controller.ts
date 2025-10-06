@@ -222,12 +222,12 @@ export class ChatController {
             },
             {
                 id: 'openai',
-                name: 'GPT-3.5 Turbo',
+                name: 'GPT-4o Mini',
                 provider: 'OpenAI',
                 available: this.openaiService.isAvailable(),
                 features: ['text-generation', 'streaming', 'chat-completions'],
                 description: 'Modelo de OpenAI optimizado para chat y conversaciones',
-                defaultModel: 'gpt-3.5-turbo'
+                defaultModel: 'gpt-4o-mini'
             }
         ];
 

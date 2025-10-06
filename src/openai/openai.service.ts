@@ -39,7 +39,7 @@ export class OpenAIService {
                 maxTokens = 2048,
                 temperature = 0.7,
                 systemPrompt,
-                model = 'gpt-3.5-turbo'
+                model = 'gpt-4o-mini'
             } = options || {};
 
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
@@ -94,7 +94,7 @@ export class OpenAIService {
                 maxTokens = 2048,
                 temperature = 0.7,
                 systemPrompt,
-                model = 'gpt-3.5-turbo'
+                model = 'gpt-4o-mini'
             } = options || {};
 
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
