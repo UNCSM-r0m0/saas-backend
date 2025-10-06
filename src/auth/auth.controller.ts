@@ -65,7 +65,12 @@ export class AuthController {
     @ApiOperation({ summary: 'Get current user profile' })
     @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
-    getProfile(@CurrentUser() user: any) {
+    getProfile(@CurrentUser() user: any, @Req() req: any) {
+        console.log('🔍 getProfile: Petición recibida');
+        console.log('🔍 getProfile: User:', user);
+        console.log('🔍 getProfile: Headers:', req.headers);
+        console.log('🔍 getProfile: Cookies:', req.cookies);
+        console.log('🔍 getProfile: Authorization header:', req.headers.authorization);
         return user;
     }
 
@@ -84,15 +89,19 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Set cookie y redirigir sin token en URL
+        // Configuración de cookies para ngrok
         const isProduction = process.env.NODE_ENV === 'production';
+        const isNgrok = process.env.PUBLIC_URL?.includes('ngrok');
+
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: isProduction, // false para localhost
-            sameSite: isProduction ? 'none' : 'lax', // 'lax' para localhost
+            secure: isNgrok || isProduction, // true para ngrok (HTTPS)
+            sameSite: isNgrok ? 'none' : (isProduction ? 'none' : 'lax'),
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
+            domain: isNgrok ? undefined : undefined, // No especificar dominio para ngrok
         });
+
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
@@ -112,15 +121,19 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Set cookie y redirigir sin token
+        // Configuración de cookies para ngrok
         const isProduction = process.env.NODE_ENV === 'production';
+        const isNgrok = process.env.PUBLIC_URL?.includes('ngrok');
+
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: isProduction, // false para localhost
-            sameSite: isProduction ? 'none' : 'lax', // 'lax' para localhost
+            secure: isNgrok || isProduction, // true para ngrok (HTTPS)
+            sameSite: isNgrok ? 'none' : (isProduction ? 'none' : 'lax'),
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
+            domain: isNgrok ? undefined : undefined, // No especificar dominio para ngrok
         });
+
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/auth/callback`);
     }

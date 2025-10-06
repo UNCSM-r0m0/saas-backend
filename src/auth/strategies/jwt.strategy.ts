@@ -12,8 +12,12 @@ export interface JwtPayload {
 // Función personalizada para extraer JWT de cookies
 const cookieExtractor = (req: any) => {
     let token = null;
+    console.log('🔍 cookieExtractor: Req cookies:', req?.cookies);
     if (req && req.cookies) {
         token = req.cookies['auth_token'];
+        console.log('🔍 cookieExtractor: Token extraído de cookie:', token ? 'EXISTS' : 'NULL');
+    } else {
+        console.log('🔍 cookieExtractor: No hay cookies en req');
     }
     return token;
 };
@@ -36,11 +40,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     async validate(payload: JwtPayload) {
-        return {
+        console.log('🔍 JwtStrategy.validate: Payload recibido:', payload);
+        const user = {
             id: payload.sub,
             email: payload.email,
             role: payload.role,
         };
+        console.log('🔍 JwtStrategy.validate: Usuario validado:', user);
+        return user;
     }
 }
 
