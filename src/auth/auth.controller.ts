@@ -75,8 +75,7 @@ export class AuthController {
         const { access_token, user: userData } = await this.authService.login(user);
 
         // Redirigir al frontend con el token
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        const redirectUrl = `${frontendUrl}/auth/callback?token=${access_token}`;
+        const redirectUrl = `http://localhost:5173/auth/callback?token=${access_token}`;
 
         console.log('Redirecting to:', redirectUrl);
         return res.redirect(redirectUrl);
@@ -98,8 +97,7 @@ export class AuthController {
         const { access_token, user: userData } = await this.authService.login(user);
 
         // Redirigir al frontend con el token
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        const redirectUrl = `${frontendUrl}/auth/callback?token=${access_token}`;
+        const redirectUrl = `http://localhost:5173/auth/callback?token=${access_token}`;
 
         console.log('Redirecting to:', redirectUrl);
         return res.redirect(redirectUrl);
