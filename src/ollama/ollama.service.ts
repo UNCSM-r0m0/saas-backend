@@ -132,4 +132,12 @@ export class OllamaService {
             return [];
         }
     }
+
+    /**
+     * Verifica si Ollama está disponible (método síncrono)
+     */
+    isAvailable(): boolean {
+        // Por ahora asumimos que está disponible si la URL está configurada
+        return !!this.ollamaUrl && this.ollamaUrl !== '';
+    }
 }

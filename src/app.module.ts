@@ -11,6 +11,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { OllamaModule } from './ollama/ollama.module';
 import { UsageService } from './usage/usage.service';
 import { StripeModule } from './stripe/stripe.module';
+import { GeminiModule } from './gemini/gemini.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { StripeModule } from './stripe/stripe.module';
         STRIPE_SECRET_KEY: Joi.string().allow('').optional(),
         STRIPE_WEBHOOK_SECRET: Joi.string().allow('').optional(),
         STRIPE_PREMIUM_PRICE_ID: Joi.string().allow('').optional(),
+        GEMINI_API_KEY: Joi.string().allow('').optional(),
         MAX_FILE_SIZE_MB: Joi.number().default(10),
         ALLOWED_FILE_TYPES: Joi.string().default('image/jpeg,image/png,image/gif,image/webp'),
         ADMIN_EMAIL: Joi.string().default('admin@saas.com'),
@@ -55,6 +57,7 @@ import { StripeModule } from './stripe/stripe.module';
     SubscriptionsModule,
     OllamaModule,
     StripeModule,
+    GeminiModule,
   ],
   controllers: [AppController],
   providers: [AppService, UsageService],

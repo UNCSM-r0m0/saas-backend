@@ -20,11 +20,17 @@ import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatResponseDto } from './dto/chat-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OllamaService } from '../ollama/ollama.service';
+import { GeminiService } from '../gemini/gemini.service';
 
 @ApiTags('chat')
 @Controller('chat')
 export class ChatController {
-    constructor(private readonly chatService: ChatService) { }
+    constructor(
+        private readonly chatService: ChatService,
+        private readonly ollamaService: OllamaService,
+        private readonly geminiService: GeminiService,
+    ) { }
 
     /**
      * Enviar mensaje (anónimos y registrados)
@@ -156,5 +162,64 @@ export class ChatController {
     })
     async getUserStats(@Req() req: any) {
         return this.chatService.getUserUsageStats(req.user.id);
+    }
+
+    /**
+     * Obtener modelos de IA disponibles
+     */
+    @Get('models')
+    @ApiOperation({
+        summary: 'Obtener modelos de IA disponibles',
+        description: 'Lista todos los modelos de IA disponibles para usar en el chat',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Lista de modelos disponibles',
+        schema: {
+            example: {
+                models: [
+                    {
+                        id: 'ollama',
+                        name: 'Ollama Local',
+                        provider: 'Local',
+                        available: true,
+                        features: ['text-generation', 'local-processing'],
+                        description: 'Modelo local ejecutándose en tu servidor'
+                    },
+                    {
+                        id: 'gemini',
+                        name: 'Gemini 2.0 Flash',
+                        provider: 'Google',
+                        available: true,
+                        features: ['text-generation', 'multimodal', 'streaming'],
+                        description: 'Modelo avanzado de Google con capacidades multimodales'
+                    }
+                ]
+            }
+        }
+    })
+    async getAvailableModels() {
+        const models = [
+            {
+                id: 'ollama',
+                name: 'Ollama Local',
+                provider: 'Local',
+                available: this.ollamaService.isAvailable(),
+                features: ['text-generation', 'local-processing'],
+                description: 'Modelo local ejecutándose en tu servidor',
+                defaultModel: 'deepseek-r1:7b'
+            },
+            {
+                id: 'gemini',
+                name: 'Gemini 2.0 Flash',
+                provider: 'Google',
+                available: this.geminiService.isAvailable(),
+                features: ['text-generation', 'multimodal', 'streaming'],
+                description: 'Modelo avanzado de Google con capacidades multimodales',
+                defaultModel: 'gemini-2.0-flash-exp'
+            }
+        ];
+
+        return { models };
     }
 }

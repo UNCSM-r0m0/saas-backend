@@ -25,5 +25,14 @@ export class SendMessageDto {
     @IsString()
     @IsOptional()
     anonymousId?: string;
+
+    @ApiPropertyOptional({
+        example: 'ollama',
+        description: 'Modelo de IA a usar: ollama (local) o gemini (Google)',
+        enum: ['ollama', 'gemini'],
+    })
+    @IsString()
+    @IsOptional()
+    model?: 'ollama' | 'gemini';
 }
 
