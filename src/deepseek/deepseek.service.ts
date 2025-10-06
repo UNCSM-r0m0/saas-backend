@@ -78,24 +78,12 @@ export class DeepSeekService {
             this.logger.log(`DeepSeek response generated (model: ${modelUsed}, tokens: ${tokensUsed})`);
             return { response: aiResponse, tokensUsed, model: modelUsed };
         } catch (error) {
-            this.logger.error('Error generating DeepSeek response:', error);
+            // Log más limpio - solo el mensaje de error
+            const errorMessage = error instanceof OpenAI.APIError ? error.message : 'Unknown error';
+            this.logger.warn(`DeepSeek API error: ${errorMessage}`);
 
-            // Manejo específico de errores de DeepSeek
-            if (error instanceof OpenAI.APIError) {
-                throw new HttpException(
-                    {
-                        message: error.message,
-                        errorCode: error.code || 'DEEPSEEK_API_ERROR',
-                        status: error.status,
-                    },
-                    error.status || HttpStatus.INTERNAL_SERVER_ERROR,
-                );
-            }
-
-            throw new HttpException(
-                'Error al conectar con el modelo de IA de DeepSeek',
-                HttpStatus.SERVICE_UNAVAILABLE,
-            );
+            // Re-lanzar el error para que el filtro global lo maneje
+            throw error;
         }
     }
 

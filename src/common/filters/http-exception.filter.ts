@@ -36,9 +36,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
             // Manejar errores específicos de APIs externas
             const errorMessage = (exception as any).message || 'Internal server error';
 
-            if (errorMessage.includes('quota') || errorMessage.includes('429')) {
+            if (errorMessage.includes('quota') || errorMessage.includes('429') || errorMessage.includes('Insufficient Balance') || errorMessage.includes('402')) {
                 status = HttpStatus.SERVICE_UNAVAILABLE;
-                message = 'El modelo de IA está temporalmente no disponible debido a límites de cuota. Por favor, intenta con otro modelo.';
+                message = 'El modelo de IA está temporalmente no disponible debido a límites de cuota o saldo insuficiente. Por favor, intenta con otro modelo.';
                 errorCode = 'AI_QUOTA_EXCEEDED';
             } else if (errorMessage.includes('API key') || errorMessage.includes('401')) {
                 status = HttpStatus.SERVICE_UNAVAILABLE;
@@ -55,12 +55,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
             }
         }
 
-        // Log del error
-        this.logger.error(
-            `HTTP ${status} Error: ${message}`,
-            exception instanceof Error ? exception.stack : undefined,
-            `${request.method} ${request.url}`,
-        );
+        // Log del error (más limpio para errores de IA)
+        if (errorCode?.startsWith('AI_')) {
+            this.logger.warn(`AI Service Error: ${message} (${request.method} ${request.url})`);
+        } else {
+            this.logger.error(
+                `HTTP ${status} Error: ${message}`,
+                exception instanceof Error ? exception.stack : undefined,
+                `${request.method} ${request.url}`,
+            );
+        }
 
         // Respuesta estructurada
         const errorResponse = {

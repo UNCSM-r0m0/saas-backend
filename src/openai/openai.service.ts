@@ -74,7 +74,11 @@ export class OpenAIService {
                 model: completion.model,
             };
         } catch (error) {
-            this.logger.error(`Error generating OpenAI response: ${error.message}`);
+            // Log más limpio - solo el mensaje de error
+            const errorMessage = error instanceof OpenAI.APIError ? error.message : 'Unknown error';
+            this.logger.warn(`OpenAI API error: ${errorMessage}`);
+
+            // Re-lanzar el error para que el filtro global lo maneje
             throw error;
         }
     }
