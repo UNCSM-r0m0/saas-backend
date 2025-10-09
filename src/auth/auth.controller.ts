@@ -100,18 +100,28 @@ export class AuthController {
         const { access_token, user: userData } = await this.authService.login(user);
 
         // Configuración de cookies para cross-origin con HTTPS (ngrok)
-        const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        const isLocalhostFrontend = frontendUrl.includes('localhost');
+        const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
 
-        // Para cross-origin HTTPS: usar Secure + SameSite=None
-        // Para same-site: usar SameSite=Lax
-        const useCrossSiteCookies = isLocalhostFrontend;
+        // Determinar si es cross-site comparando hostnames
+        let isCrossSite = false;
+        try {
+            const frontendHostname = new URL(frontendUrl).hostname;
+            const publicHostname = new URL(publicUrl).hostname;
+            isCrossSite = frontendHostname !== publicHostname;
+            console.log('🔍 AuthController: Frontend hostname:', frontendHostname);
+            console.log('🔍 AuthController: Backend hostname:', publicHostname);
+            console.log('🔍 AuthController: Is cross-site:', isCrossSite);
+        } catch (e) {
+            console.error('🔍 AuthController: Error parsing URLs for SameSite determination:', e);
+            // Default to cross-site if parsing fails to be safe
+            isCrossSite = true;
+        }
 
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true, // true para HTTPS (ngrok)
-            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
+            secure: true, // Siempre true para HTTPS (ngrok/Vercel)
+            sameSite: isCrossSite ? 'none' : 'lax', // 'none' para cross-site, 'lax' para same-site
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
             domain: undefined, // No especificar dominio
@@ -140,18 +150,28 @@ export class AuthController {
         const { access_token, user: userData } = await this.authService.login(user);
 
         // Configuración de cookies para cross-origin con HTTPS (ngrok)
-        const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        const isLocalhostFrontend = frontendUrl.includes('localhost');
+        const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
 
-        // Para cross-origin HTTPS: usar Secure + SameSite=None
-        // Para same-site: usar SameSite=Lax
-        const useCrossSiteCookies = isLocalhostFrontend;
+        // Determinar si es cross-site comparando hostnames
+        let isCrossSite = false;
+        try {
+            const frontendHostname = new URL(frontendUrl).hostname;
+            const publicHostname = new URL(publicUrl).hostname;
+            isCrossSite = frontendHostname !== publicHostname;
+            console.log('🔍 AuthController: Frontend hostname:', frontendHostname);
+            console.log('🔍 AuthController: Backend hostname:', publicHostname);
+            console.log('🔍 AuthController: Is cross-site:', isCrossSite);
+        } catch (e) {
+            console.error('🔍 AuthController: Error parsing URLs for SameSite determination:', e);
+            // Default to cross-site if parsing fails to be safe
+            isCrossSite = true;
+        }
 
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true, // true para HTTPS (ngrok)
-            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
+            secure: true, // Siempre true para HTTPS (ngrok/Vercel)
+            sameSite: isCrossSite ? 'none' : 'lax', // 'none' para cross-site, 'lax' para same-site
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
             domain: undefined, // No especificar dominio
