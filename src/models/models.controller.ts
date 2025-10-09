@@ -2,6 +2,7 @@ import {
     Controller,
     Get,
     UseGuards,
+    Req,
 } from '@nestjs/common';
 import {
     ApiTags,
@@ -59,43 +60,82 @@ export class ModelsController {
         },
     })
     @ApiBearerAuth('JWT-auth')
-    async getAvailableModels() {
+    async getAvailableModels(@Req() req: any) {
+        // TODO: Verificar suscripción del usuario para modelos premium
+        const userHasSubscription = false; // Por ahora todos son gratuitos
+
         const models = [
             {
-                id: 'ollama',
-                name: 'Ollama Local',
-                provider: 'Local',
-                available: this.ollamaService.isAvailable(),
-                features: ['text-generation', 'local-processing'],
-                description: 'Modelo local ejecutándose en tu servidor',
-                defaultModel: 'deepseek-r1:7b'
+                id: 'deepseek-r1:7b',
+                name: 'DeepSeek R1 7B',
+                provider: 'ollama',
+                description: 'Modelo local avanzado con capacidades de razonamiento',
+                maxTokens: 32768,
+                supportsImages: false,
+                supportsReasoning: true,
+                isPremium: false,
+                isAvailable: this.ollamaService.isAvailable(),
+                features: ['text-generation', 'local-processing', 'reasoning']
             },
             {
-                id: 'gemini',
-                name: 'Gemini 2.0 Flash',
-                provider: 'Google',
-                available: this.geminiService.isAvailable(),
-                features: ['text-generation', 'multimodal', 'streaming'],
+                id: 'llama3.2:3b',
+                name: 'Llama 3.2 3B',
+                provider: 'ollama',
+                description: 'Modelo local rápido y eficiente',
+                maxTokens: 16384,
+                supportsImages: false,
+                supportsReasoning: false,
+                isPremium: false,
+                isAvailable: this.ollamaService.isAvailable(),
+                features: ['text-generation', 'local-processing']
+            },
+            {
+                id: 'gemini-2.5-flash',
+                name: 'Gemini 2.5 Flash',
+                provider: 'gemini',
                 description: 'Modelo avanzado de Google con capacidades multimodales',
-                defaultModel: 'gemini-2.0-flash-exp'
+                maxTokens: 1000000,
+                supportsImages: true,
+                supportsReasoning: true,
+                isPremium: true,
+                isAvailable: userHasSubscription && this.geminiService.isAvailable(),
+                features: ['text-generation', 'multimodal', 'streaming', 'reasoning']
             },
             {
-                id: 'openai',
+                id: 'gemini-2.5-pro',
+                name: 'Gemini 2.5 Pro',
+                provider: 'gemini',
+                description: 'Modelo más avanzado de Google',
+                maxTokens: 2000000,
+                supportsImages: true,
+                supportsReasoning: true,
+                isPremium: true,
+                isAvailable: userHasSubscription && this.geminiService.isAvailable(),
+                features: ['text-generation', 'multimodal', 'streaming', 'reasoning', 'advanced']
+            },
+            {
+                id: 'gpt-4o-mini',
                 name: 'GPT-4o Mini',
-                provider: 'OpenAI',
-                available: this.openaiService.isAvailable(),
-                features: ['text-generation', 'streaming', 'chat-completions'],
-                description: 'Modelo de OpenAI optimizado para chat y conversaciones',
-                defaultModel: 'gpt-4o-mini'
+                provider: 'openai',
+                description: 'Modelo de OpenAI optimizado para chat',
+                maxTokens: 128000,
+                supportsImages: true,
+                supportsReasoning: true,
+                isPremium: true,
+                isAvailable: userHasSubscription && this.openaiService.isAvailable(),
+                features: ['text-generation', 'streaming', 'chat-completions', 'multimodal']
             },
             {
-                id: 'deepseek',
-                name: 'DeepSeek Chat',
-                provider: 'DeepSeek',
-                available: this.deepseekService.isAvailable(),
-                features: ['text-generation', 'cost-effective', 'high-performance'],
-                description: 'Modelo de DeepSeek con excelente relación precio-calidad',
-                defaultModel: 'deepseek-chat'
+                id: 'gpt-4o',
+                name: 'GPT-4o',
+                provider: 'openai',
+                description: 'Modelo más avanzado de OpenAI',
+                maxTokens: 128000,
+                supportsImages: true,
+                supportsReasoning: true,
+                isPremium: true,
+                isAvailable: userHasSubscription && this.openaiService.isAvailable(),
+                features: ['text-generation', 'streaming', 'chat-completions', 'multimodal', 'advanced']
             }
         ];
 

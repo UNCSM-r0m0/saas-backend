@@ -70,7 +70,11 @@ export class ChatController {
     @ApiBearerAuth('JWT-auth')
     async getChats(@Req() req: any) {
         // Por ahora retornamos array vacío hasta implementar la lógica completa
-        return { chats: [] };
+        return {
+            success: true,
+            data: [],
+            message: 'Chats obtenidos exitosamente'
+        };
     }
 
     /**
@@ -125,7 +129,11 @@ export class ChatController {
             updatedAt: new Date().toISOString(),
         };
 
-        return { chat: newChat };
+        return {
+            success: true,
+            data: newChat,
+            message: 'Chat creado exitosamente'
+        };
     }
 
     /**
@@ -177,13 +185,13 @@ export class ChatController {
             model: 'ollama',
             messages: [
                 {
-                    id: '1',
+                    id: crypto.randomUUID(),
                     role: 'user',
                     content: 'Hola, ¿cómo estás?',
                     createdAt: new Date().toISOString(),
                 },
                 {
-                    id: '2',
+                    id: crypto.randomUUID(),
                     role: 'assistant',
                     content: '¡Hola! Estoy muy bien, gracias por preguntar. ¿En qué puedo ayudarte hoy?',
                     createdAt: new Date().toISOString(),
@@ -193,7 +201,11 @@ export class ChatController {
             updatedAt: new Date().toISOString(),
         };
 
-        return { chat: exampleChat };
+        return {
+            success: true,
+            data: exampleChat,
+            message: 'Chat obtenido exitosamente'
+        };
     }
 
     /**
