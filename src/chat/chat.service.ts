@@ -65,6 +65,7 @@ export class ChatService {
         let conversation: any = null;
 
         if (userId && !conversationId) {
+            // Crear nueva conversación
             conversation = await this.prisma.conversation.create({
                 data: {
                     userId,
@@ -80,6 +81,18 @@ export class ChatService {
             conversation = await this.prisma.conversation.findUnique({
                 where: { id: conversationId }
             });
+
+            // Si no existe la conversación, crear una nueva
+            if (!conversation) {
+                console.log(`🔍 ChatService: Conversación ${conversationId} no existe, creando nueva`);
+                conversation = await this.prisma.conversation.create({
+                    data: {
+                        id: conversationId, // Usar el ID proporcionado
+                        userId,
+                        title: this.generateTitle(dto.content),
+                    },
+                });
+            }
         }
 
         // 4. Guardar mensaje del usuario (solo si es registrado)
