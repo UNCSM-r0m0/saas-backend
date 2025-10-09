@@ -25,6 +25,7 @@ import { ClientTypeGuard } from '../common/guards/client-type.guard';
 import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
+import { JwtService } from '@nestjs/jwt';
 import { DeepSeekService } from '../deepseek/deepseek.service';
 
 @ApiTags('chat')
@@ -190,34 +191,44 @@ export class ChatController {
     })
     @ApiBearerAuth('JWT-auth')
     async getChat(@Param('id') id: string, @Req() req: any) {
-        // Por ahora retornamos un chat de ejemplo hasta implementar la lógica completa
-        const exampleChat = {
-            id,
-            title: 'Chat de ejemplo',
-            model: 'ollama',
-            messages: [
-                {
-                    id: crypto.randomUUID(),
-                    role: 'user',
-                    content: 'Hola, ¿cómo estás?',
-                    createdAt: new Date().toISOString(),
-                },
-                {
-                    id: crypto.randomUUID(),
-                    role: 'assistant',
-                    content: '¡Hola! Estoy muy bien, gracias por preguntar. ¿En qué puedo ayudarte hoy?',
-                    createdAt: new Date().toISOString(),
-                },
-            ],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
+        const userId = req.user?.id;
 
-        return {
-            success: true,
-            data: exampleChat,
-            message: 'Chat obtenido exitosamente'
-        };
+        if (!userId) {
+            return {
+                success: false,
+                message: 'Usuario no autenticado'
+            };
+        }
+
+        try {
+            const conversation = await this.chatService.getConversation(id, userId);
+
+            // Convertir a formato esperado por el frontend
+            const chatData = {
+                id: conversation.id,
+                title: conversation.title,
+                model: 'ollama', // Por defecto
+                messages: conversation.messages.map(msg => ({
+                    id: msg.id,
+                    role: msg.role.toLowerCase(),
+                    content: msg.content,
+                    createdAt: msg.createdAt,
+                })),
+                createdAt: conversation.createdAt,
+                updatedAt: conversation.updatedAt,
+            };
+
+            return {
+                success: true,
+                data: chatData,
+                message: 'Chat obtenido exitosamente'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Error al obtener chat'
+            };
+        }
     }
 
     /**
