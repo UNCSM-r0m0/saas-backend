@@ -3,6 +3,7 @@ import {
     Logger,
     ForbiddenException,
     NotFoundException,
+    BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OllamaService } from '../ollama/ollama.service';
@@ -237,6 +238,17 @@ export class ChatService {
                     model: modelUsed,
                 },
             });
+
+            // Si el título es el placeholder, intenta actualizarlo con el primer mensaje del usuario
+            if (conversation && conversation.title === 'Nuevo Chat') {
+                const newTitle = this.generateTitle(dto.content);
+                if (newTitle && newTitle !== 'Nuevo Chat') {
+                    conversation = await this.prisma.conversation.update({
+                        where: { id: conversationId! },
+                        data: { title: newTitle }
+                    });
+                }
+            }
         }
 
         // 9. Incrementar contador de uso
@@ -353,6 +365,43 @@ export class ChatService {
                 },
             },
         });
+    }
+
+    /**
+     * Actualiza el primer mensaje del usuario y regenera el título de la conversación
+     */
+    async updateFirstMessageAndTitle(conversationId: string, userId: string, newContent: string) {
+        // Verificar que la conversación sea del usuario
+        const conversation = await this.prisma.conversation.findFirst({
+            where: { id: conversationId, userId },
+        });
+        if (!conversation) {
+            throw new ForbiddenException('No tienes acceso a esta conversación');
+        }
+
+        // Buscar primer mensaje del usuario en esa conversación
+        const firstUserMessage = await this.prisma.message.findFirst({
+            where: { conversationId, userId, role: MessageRole.USER },
+            orderBy: { createdAt: 'asc' },
+        });
+        if (!firstUserMessage) {
+            throw new BadRequestException('No hay mensaje de usuario para actualizar');
+        }
+
+        // Actualizar contenido del mensaje
+        await this.prisma.message.update({
+            where: { id: firstUserMessage.id },
+            data: { content: newContent },
+        });
+
+        // Regenerar título con el nuevo contenido
+        const newTitle = this.generateTitle(newContent);
+        await this.prisma.conversation.update({
+            where: { id: conversationId },
+            data: { title: newTitle },
+        });
+
+        return { success: true, data: { title: newTitle }, message: 'Mensaje y título actualizados' };
     }
 
     /**

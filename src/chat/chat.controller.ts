@@ -264,6 +264,21 @@ export class ChatController {
     }
 
     /**
+     * Actualiza el primer mensaje del usuario y regenera el título si procede
+     */
+    @Patch(':conversationId/first-message')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Actualizar primer mensaje y regenerar título' })
+    async updateFirstMessage(
+        @Param('conversationId') conversationId: string,
+        @Body() body: { content: string },
+        @Req() req: any,
+    ) {
+        return this.chatService.updateFirstMessageAndTitle(conversationId, req.user.id, body.content);
+    }
+
+    /**
      * Listar conversaciones del usuario
      */
     @Get('conversations')
