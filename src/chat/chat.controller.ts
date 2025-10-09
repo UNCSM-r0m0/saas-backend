@@ -70,10 +70,21 @@ export class ChatController {
     })
     @ApiBearerAuth('JWT-auth')
     async getChats(@Req() req: any) {
-        // Por ahora retornamos array vacío hasta implementar la lógica completa
+        const userId = req.user?.id;
+
+        if (!userId) {
+            return {
+                success: true,
+                data: [],
+                message: 'Usuario no autenticado'
+            };
+        }
+
+        const chats = await this.chatService.getUserChats(userId);
+
         return {
             success: true,
-            data: [],
+            data: chats,
             message: 'Chats obtenidos exitosamente'
         };
     }

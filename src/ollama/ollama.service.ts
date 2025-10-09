@@ -48,6 +48,14 @@ export class OllamaService {
     }
 
     /**
+     * Remueve las etiquetas <think>...</think> del contenido
+     */
+    private stripThinkTags(content: string): string {
+        // Elimina <think>...</think> y espacios alrededor
+        return content.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim();
+    }
+
+    /**
      * Genera una respuesta del modelo de Ollama
      */
     async generate(
@@ -89,8 +97,12 @@ export class OllamaService {
 
             const tokensUsed = (data.prompt_eval_count || 0) + (data.eval_count || 0);
 
+            // Limpiar contenido removiendo <think>...</think>
+            const rawContent = data.message.content;
+            const cleanedContent = this.stripThinkTags(rawContent);
+
             return {
-                content: data.message.content,
+                content: cleanedContent,
                 tokensUsed,
             };
         } catch (error) {

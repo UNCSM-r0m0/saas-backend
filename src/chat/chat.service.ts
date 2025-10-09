@@ -293,6 +293,35 @@ export class ChatService {
     }
 
     /**
+     * Obtiene todos los chats de un usuario
+     */
+    async getUserChats(userId: string) {
+        const conversations = await this.prisma.conversation.findMany({
+            where: { userId },
+            orderBy: { updatedAt: 'desc' },
+            select: {
+                id: true,
+                title: true,
+                createdAt: true,
+                updatedAt: true,
+                _count: {
+                    select: {
+                        messages: true
+                    }
+                }
+            }
+        });
+
+        return conversations.map(conv => ({
+            id: conv.id,
+            title: conv.title,
+            createdAt: conv.createdAt,
+            updatedAt: conv.updatedAt,
+            messageCount: conv._count.messages
+        }));
+    }
+
+    /**
      * Obtiene el historial de una conversación
      */
     async getConversationHistory(conversationId: string) {
