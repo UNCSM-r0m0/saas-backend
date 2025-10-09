@@ -48,13 +48,23 @@ export class AuthController {
     @ApiResponse({ status: 401, description: 'Invalid credentials' })
     async login(@Body() loginDto: LoginDto, @CurrentUser() user: any, @Res() res: Response) {
         const { access_token, user: userData } = await this.authService.login(user);
+
+        // Configuración de cookies para cross-site (localhost → ngrok)
         const isProduction = process.env.NODE_ENV === 'production';
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const isLocalhostFrontend = frontendUrl.includes('localhost');
+
+        // Para cross-site: usar Secure + SameSite=None
+        // Para same-site: usar SameSite=Lax
+        const useCrossSiteCookies = isLocalhostFrontend;
+
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: isProduction, // false para localhost
-            sameSite: isProduction ? 'none' : 'lax', // 'lax' para localhost
+            secure: true, // Siempre true para HTTPS (ngrok)
+            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
+            domain: undefined, // No especificar dominio
         });
         return res.json({ user: userData });
     }
@@ -89,20 +99,24 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Configuración de cookies para ngrok
+        // Configuración de cookies para cross-site (localhost → ngrok)
         const isProduction = process.env.NODE_ENV === 'production';
-        const isNgrok = process.env.PUBLIC_URL?.includes('ngrok');
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const isLocalhostFrontend = frontendUrl.includes('localhost');
+
+        // Para cross-site: usar Secure + SameSite=None
+        // Para same-site: usar SameSite=Lax
+        const useCrossSiteCookies = isLocalhostFrontend;
 
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: isNgrok || isProduction, // true para ngrok (HTTPS)
-            sameSite: isNgrok ? 'none' : (isProduction ? 'none' : 'lax'),
+            secure: true, // Siempre true para HTTPS (ngrok)
+            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
-            domain: isNgrok ? undefined : undefined, // No especificar dominio para ngrok
+            domain: undefined, // No especificar dominio
         });
 
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
@@ -121,20 +135,24 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Configuración de cookies para ngrok
+        // Configuración de cookies para cross-site (localhost → ngrok)
         const isProduction = process.env.NODE_ENV === 'production';
-        const isNgrok = process.env.PUBLIC_URL?.includes('ngrok');
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const isLocalhostFrontend = frontendUrl.includes('localhost');
+
+        // Para cross-site: usar Secure + SameSite=None
+        // Para same-site: usar SameSite=Lax
+        const useCrossSiteCookies = isLocalhostFrontend;
 
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: isNgrok || isProduction, // true para ngrok (HTTPS)
-            sameSite: isNgrok ? 'none' : (isProduction ? 'none' : 'lax'),
+            secure: true, // Siempre true para HTTPS (ngrok)
+            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
-            domain: isNgrok ? undefined : undefined, // No especificar dominio para ngrok
+            domain: undefined, // No especificar dominio
         });
 
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
