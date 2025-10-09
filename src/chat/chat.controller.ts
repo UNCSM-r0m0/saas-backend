@@ -74,6 +74,74 @@ export class ChatController {
     }
 
     /**
+     * Obtener un chat específico con sus mensajes
+     */
+    @Get(':id')
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({
+        summary: 'Obtener un chat específico',
+        description: 'Retorna un chat específico con todos sus mensajes',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Chat obtenido exitosamente',
+        schema: {
+            type: 'object',
+            properties: {
+                chat: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string' },
+                        title: { type: 'string' },
+                        model: { type: 'string' },
+                        messages: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id: { type: 'string' },
+                                    role: { type: 'string' },
+                                    content: { type: 'string' },
+                                    createdAt: { type: 'string' },
+                                },
+                            },
+                        },
+                        createdAt: { type: 'string' },
+                        updatedAt: { type: 'string' },
+                    },
+                },
+            },
+        },
+    })
+    @ApiBearerAuth('JWT-auth')
+    async getChat(@Param('id') id: string, @Req() req: any) {
+        // Por ahora retornamos un chat de ejemplo hasta implementar la lógica completa
+        const exampleChat = {
+            id,
+            title: 'Chat de ejemplo',
+            model: 'ollama',
+            messages: [
+                {
+                    id: '1',
+                    role: 'user',
+                    content: 'Hola, ¿cómo estás?',
+                    createdAt: new Date().toISOString(),
+                },
+                {
+                    id: '2',
+                    role: 'assistant',
+                    content: '¡Hola! Estoy muy bien, gracias por preguntar. ¿En qué puedo ayudarte hoy?',
+                    createdAt: new Date().toISOString(),
+                },
+            ],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        return { chat: exampleChat };
+    }
+
+    /**
      * Enviar mensaje (anónimos y registrados)
      */
     @Post('message')
