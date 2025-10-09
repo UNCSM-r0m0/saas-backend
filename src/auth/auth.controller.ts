@@ -49,19 +49,19 @@ export class AuthController {
     async login(@Body() loginDto: LoginDto, @CurrentUser() user: any, @Res() res: Response) {
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Configuración de cookies para cross-site (localhost → ngrok)
+        // Configuración de cookies para desarrollo local
         const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const isLocalhostFrontend = frontendUrl.includes('localhost');
 
-        // Para cross-site: usar Secure + SameSite=None
-        // Para same-site: usar SameSite=Lax
-        const useCrossSiteCookies = isLocalhostFrontend;
+        // Para desarrollo local: no usar secure cookies
+        // Para producción: usar secure cookies
+        const useSecureCookies = isProduction && !isLocalhostFrontend;
 
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true, // Siempre true para HTTPS (ngrok)
-            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
+            secure: useSecureCookies, // false para desarrollo local
+            sameSite: isLocalhostFrontend ? 'lax' : 'none', // 'lax' para localhost
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
             domain: undefined, // No especificar dominio
@@ -99,19 +99,19 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Configuración de cookies para cross-site (localhost → ngrok)
+        // Configuración de cookies para desarrollo local
         const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const isLocalhostFrontend = frontendUrl.includes('localhost');
 
-        // Para cross-site: usar Secure + SameSite=None
-        // Para same-site: usar SameSite=Lax
-        const useCrossSiteCookies = isLocalhostFrontend;
+        // Para desarrollo local: no usar secure cookies
+        // Para producción: usar secure cookies
+        const useSecureCookies = isProduction && !isLocalhostFrontend;
 
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true, // Siempre true para HTTPS (ngrok)
-            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
+            secure: useSecureCookies, // false para desarrollo local
+            sameSite: isLocalhostFrontend ? 'lax' : 'none', // 'lax' para localhost
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
             domain: undefined, // No especificar dominio
@@ -135,19 +135,19 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Configuración de cookies para cross-site (localhost → ngrok)
+        // Configuración de cookies para desarrollo local
         const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const isLocalhostFrontend = frontendUrl.includes('localhost');
 
-        // Para cross-site: usar Secure + SameSite=None
-        // Para same-site: usar SameSite=Lax
-        const useCrossSiteCookies = isLocalhostFrontend;
+        // Para desarrollo local: no usar secure cookies
+        // Para producción: usar secure cookies
+        const useSecureCookies = isProduction && !isLocalhostFrontend;
 
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true, // Siempre true para HTTPS (ngrok)
-            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
+            secure: useSecureCookies, // false para desarrollo local
+            sameSite: isLocalhostFrontend ? 'lax' : 'none', // 'lax' para localhost
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
             domain: undefined, // No especificar dominio
