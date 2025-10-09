@@ -117,6 +117,10 @@ export class AuthController {
             domain: undefined, // No especificar dominio
         });
 
+        console.log('🔍 AuthController: Redirigiendo a frontendUrl:', frontendUrl);
+        console.log('🔍 AuthController: FRONTEND_URL env:', process.env.FRONTEND_URL);
+        console.log('🔍 AuthController: URL completa de redirección:', `${frontendUrl}/auth/callback`);
+
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
