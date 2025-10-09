@@ -118,18 +118,18 @@ export class AuthController {
             isCrossSite = true;
         }
 
+        // Configuración correcta de cookies para cross-site
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true, // Siempre true para HTTPS (ngrok/Vercel)
-            sameSite: isCrossSite ? 'none' : 'lax', // 'none' para cross-site, 'lax' para same-site
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            domain: undefined, // No especificar dominio
+            secure: true,          // obligatorio en prod (https)
+            sameSite: 'none',     // obligatorio al ser cross-site
+            path: '/',             // que aplique a /api/*
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+            // NO especificar domain para ngrok
         });
 
+        console.log('🔍 AuthController: Cookie establecida con SameSite=none, Secure=true');
         console.log('🔍 AuthController: Redirigiendo a frontendUrl:', frontendUrl);
-        console.log('🔍 AuthController: FRONTEND_URL env:', process.env.FRONTEND_URL);
-        console.log('🔍 AuthController: URL completa de redirección:', `${frontendUrl}/auth/callback`);
 
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
@@ -168,14 +168,17 @@ export class AuthController {
             isCrossSite = true;
         }
 
+        // Configuración correcta de cookies para cross-site
         res.cookie('auth_token', access_token, {
             httpOnly: true,
-            secure: true, // Siempre true para HTTPS (ngrok/Vercel)
-            sameSite: isCrossSite ? 'none' : 'lax', // 'none' para cross-site, 'lax' para same-site
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            domain: undefined, // No especificar dominio
+            secure: true,          // obligatorio en prod (https)
+            sameSite: 'none',     // obligatorio al ser cross-site
+            path: '/',             // que aplique a /api/*
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+            // NO especificar domain para ngrok
         });
+
+        console.log('🔍 AuthController: GitHub cookie establecida con SameSite=none, Secure=true');
 
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
