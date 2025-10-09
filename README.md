@@ -345,3 +345,5 @@ Probar endpoints:
 ## systemctl status ollama
 
 ## ollama run deepseek-r1:7b
+
+## ollama run deepseek-coder
