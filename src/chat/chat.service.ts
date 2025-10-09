@@ -61,8 +61,10 @@ export class ChatService {
 
         // 3. Obtener o crear conversación (solo para usuarios registrados)
         let conversationId = dto.conversationId;
+        let conversation: any = null;
+
         if (userId && !conversationId) {
-            const conversation = await this.prisma.conversation.create({
+            conversation = await this.prisma.conversation.create({
                 data: {
                     userId,
                     title: this.generateTitle(dto.content),
@@ -72,6 +74,11 @@ export class ChatService {
         } else if (!userId) {
             // Usuarios anónimos: no guardan conversación
             conversationId = 'anonymous';
+        } else if (userId && conversationId) {
+            // Buscar conversación existente
+            conversation = await this.prisma.conversation.findUnique({
+                where: { id: conversationId }
+            });
         }
 
         // 4. Guardar mensaje del usuario (solo si es registrado)
@@ -239,19 +246,49 @@ export class ChatService {
             userId ? undefined : dto.anonymousId, // Solo usar anonymousId si no hay userId
         );
 
-        // 10. Retornar respuesta
+        // 10. Retornar respuesta en formato esperado por el frontend
+        const updatedChat = {
+            id: conversationId !== 'anonymous' ? conversationId : 'temp-chat-id',
+            title: conversation?.title || 'Nuevo Chat',
+            model: modelUsed,
+            messages: [
+                {
+                    id: userMessage?.id || 'temp-user-id',
+                    role: 'user',
+                    content: dto.content,
+                    createdAt: new Date(),
+                },
+                {
+                    id: assistantMessage?.id || 'temp-assistant-id',
+                    role: 'assistant',
+                    content: aiResponse,
+                    createdAt: new Date(),
+                }
+            ],
+            createdAt: conversation?.createdAt || new Date(),
+            updatedAt: new Date(),
+        };
+
         return {
-            conversationId: conversationId !== 'anonymous' ? conversationId : null,
-            message: {
-                id: assistantMessage?.id || 'temp-id',
-                role: 'assistant',
-                content: aiResponse,
-                tokensUsed,
-                createdAt: new Date(),
+            success: true,
+            data: {
+                chat: updatedChat,
+                message: {
+                    id: assistantMessage?.id || 'temp-assistant-id',
+                    role: 'assistant',
+                    content: aiResponse,
+                    createdAt: new Date(),
+                },
+                usage: {
+                    promptTokens: tokensUsed,
+                    completionTokens: tokensUsed,
+                    totalTokens: tokensUsed,
+                },
+                remaining: canSend.remaining - 1,
+                limit: canSend.limit,
+                tier,
             },
-            remaining: canSend.remaining - 1,
-            limit: canSend.limit,
-            tier,
+            message: 'Mensaje enviado exitosamente'
         };
     }
 
