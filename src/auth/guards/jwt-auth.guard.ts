@@ -1,13 +1,33 @@
-import { Injectable } from '@nestjs/common';
-import type { ExecutionContext } from '@nestjs/common';
+import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Reflector } from '@nestjs/core';
+import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-    handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
-        const req = context.switchToHttp().getRequest();
-        // req.clientType queda disponible si antes se ejecutó ClientTypeGuard
-        return super.handleRequest(err, user, info, context);
+    constructor(private reflector: Reflector) {
+        super();
+    }
+
+    canActivate(context: ExecutionContext) {
+        // Verificar si el endpoint requiere autenticación
+        const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+            context.getHandler(),
+            context.getClass(),
+        ]);
+
+        if (isPublic) {
+            return true; // Endpoint público, no requiere autenticación
+        }
+
+        return super.canActivate(context);
+    }
+
+    handleRequest(err: any, user: any, info: any) {
+        if (err || !user) {
+            throw new UnauthorizedException('Token inválido o expirado');
+        }
+        return user;
     }
 }
 

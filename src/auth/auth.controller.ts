@@ -24,6 +24,7 @@ import { ClientTypeGuard } from '../common/guards/client-type.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { GithubAuthGuard } from './guards/github-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import type { Response } from 'express';
 
 @ApiTags('auth')
@@ -85,6 +86,7 @@ export class AuthController {
     }
 
     // Google OAuth
+    @Public()
     @Get('google')
     @UseGuards(GoogleAuthGuard)
     @ApiOperation({ summary: 'Initiate Google OAuth login' })
@@ -92,6 +94,7 @@ export class AuthController {
         // Redirige a Google
     }
 
+    @Public()
     @Get('google/callback')
     @UseGuards(GoogleAuthGuard)
     @ApiOperation({ summary: 'Google OAuth callback' })
@@ -99,42 +102,27 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Configuración de cookies para cross-origin con HTTPS (ngrok)
+        // Configuración de cookies dinámica según entorno (como el proyecto que funciona)
+        const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+        const isCrossSite = !frontendUrl.includes('localhost');
 
-        // Determinar si es cross-site comparando hostnames
-        let isCrossSite = false;
-        try {
-            const frontendHostname = new URL(frontendUrl).hostname;
-            const publicHostname = new URL(publicUrl).hostname;
-            isCrossSite = frontendHostname !== publicHostname;
-            console.log('🔍 AuthController: Frontend hostname:', frontendHostname);
-            console.log('🔍 AuthController: Backend hostname:', publicHostname);
-            console.log('🔍 AuthController: Is cross-site:', isCrossSite);
-        } catch (e) {
-            console.error('🔍 AuthController: Error parsing URLs for SameSite determination:', e);
-            // Default to cross-site if parsing fails to be safe
-            isCrossSite = true;
-        }
-
-        // Configuración correcta de cookies para cross-site
         res.cookie('access_token', access_token, {
             httpOnly: true,
-            secure: true,          // obligatorio en prod (https)
-            sameSite: 'none',     // obligatorio al ser cross-site
-            path: '/',             // que aplique a /api/*
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-            // NO especificar domain para ngrok
+            secure: isProduction || isCrossSite, // true para prod o cross-site
+            sameSite: isCrossSite ? 'none' : 'strict', // 'none' para cross-site, 'strict' para localhost
+            path: '/',
+            maxAge: 15 * 60 * 1000, // 15 minutos (como el proyecto que funciona)
         });
 
-        console.log('🔍 AuthController: Cookie establecida con SameSite=none, Secure=true');
+        console.log('🔍 AuthController: Cookie configurada - secure:', isProduction || isCrossSite, 'sameSite:', isCrossSite ? 'none' : 'strict');
         console.log('🔍 AuthController: Redirigiendo a frontendUrl:', frontendUrl);
 
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
     // GitHub OAuth
+    @Public()
     @Get('github')
     @UseGuards(GithubAuthGuard)
     @ApiOperation({ summary: 'Initiate GitHub OAuth login' })
@@ -142,6 +130,7 @@ export class AuthController {
         // Redirige a GitHub
     }
 
+    @Public()
     @Get('github/callback')
     @UseGuards(GithubAuthGuard)
     @ApiOperation({ summary: 'GitHub OAuth callback' })
@@ -149,36 +138,20 @@ export class AuthController {
         const user = await this.authService.validateOAuthUser(req.user);
         const { access_token, user: userData } = await this.authService.login(user);
 
-        // Configuración de cookies para cross-origin con HTTPS (ngrok)
+        // Configuración de cookies dinámica según entorno (como el proyecto que funciona)
+        const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000';
+        const isCrossSite = !frontendUrl.includes('localhost');
 
-        // Determinar si es cross-site comparando hostnames
-        let isCrossSite = false;
-        try {
-            const frontendHostname = new URL(frontendUrl).hostname;
-            const publicHostname = new URL(publicUrl).hostname;
-            isCrossSite = frontendHostname !== publicHostname;
-            console.log('🔍 AuthController: Frontend hostname:', frontendHostname);
-            console.log('🔍 AuthController: Backend hostname:', publicHostname);
-            console.log('🔍 AuthController: Is cross-site:', isCrossSite);
-        } catch (e) {
-            console.error('🔍 AuthController: Error parsing URLs for SameSite determination:', e);
-            // Default to cross-site if parsing fails to be safe
-            isCrossSite = true;
-        }
-
-        // Configuración correcta de cookies para cross-site
         res.cookie('access_token', access_token, {
             httpOnly: true,
-            secure: true,          // obligatorio en prod (https)
-            sameSite: 'none',     // obligatorio al ser cross-site
-            path: '/',             // que aplique a /api/*
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-            // NO especificar domain para ngrok
+            secure: isProduction || isCrossSite, // true para prod o cross-site
+            sameSite: isCrossSite ? 'none' : 'strict', // 'none' para cross-site, 'strict' para localhost
+            path: '/',
+            maxAge: 15 * 60 * 1000, // 15 minutos (como el proyecto que funciona)
         });
 
-        console.log('🔍 AuthController: GitHub cookie establecida con SameSite=none, Secure=true');
+        console.log('🔍 AuthController: GitHub cookie configurada - secure:', isProduction || isCrossSite, 'sameSite:', isCrossSite ? 'none' : 'strict');
 
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
