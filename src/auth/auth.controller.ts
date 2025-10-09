@@ -58,7 +58,7 @@ export class AuthController {
         // Para same-site: usar SameSite=Lax
         const useCrossSiteCookies = isLocalhostFrontend;
 
-        res.cookie('auth_token', access_token, {
+        res.cookie('access_token', access_token, {
             httpOnly: true,
             secure: true, // true para HTTPS (ngrok)
             sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
@@ -119,7 +119,7 @@ export class AuthController {
         }
 
         // Configuración correcta de cookies para cross-site
-        res.cookie('auth_token', access_token, {
+        res.cookie('access_token', access_token, {
             httpOnly: true,
             secure: true,          // obligatorio en prod (https)
             sameSite: 'none',     // obligatorio al ser cross-site
@@ -169,7 +169,7 @@ export class AuthController {
         }
 
         // Configuración correcta de cookies para cross-site
-        res.cookie('auth_token', access_token, {
+        res.cookie('access_token', access_token, {
             httpOnly: true,
             secure: true,          // obligatorio en prod (https)
             sameSite: 'none',     // obligatorio al ser cross-site
@@ -186,7 +186,7 @@ export class AuthController {
     @Post('logout')
     @ApiOperation({ summary: 'Logout (borra cookie de autenticación)' })
     async logout(@Res() res: Response) {
-        res.clearCookie('auth_token', { path: '/' });
+        res.clearCookie('access_token', { path: '/' });
         return res.json({ success: true });
     }
 }

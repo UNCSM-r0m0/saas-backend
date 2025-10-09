@@ -14,7 +14,7 @@ const cookieExtractor = (req: any) => {
     let token = null;
     console.log('🔍 cookieExtractor: Req cookies:', req?.cookies);
     if (req && req.cookies) {
-        token = req.cookies['auth_token'];
+        token = req.cookies['access_token'];
         console.log('🔍 cookieExtractor: Token extraído de cookie:', token ? 'EXISTS' : 'NULL');
     } else {
         console.log('🔍 cookieExtractor: No hay cookies en req');
