@@ -242,7 +242,28 @@ export class ChatController {
     @ApiBody({ type: SendMessageDto })
     async sendMessage(@Body() dto: SendMessageDto, @Req() req: any) {
         // Obtener userId si está autenticado (opcional)
-        const userId = req.user?.id;
+        let userId = req.user?.id;
+
+        // Blindaje extra: si viene un Bearer en el header pero no pasó por guard, decodificar JWT y tomar el sub
+        if (!userId) {
+            const auth = req.headers?.authorization as string | undefined;
+            if (auth && auth.startsWith('Bearer ')) {
+                const token = auth.slice(7);
+                try {
+                    const payloadPart = token.split('.')[1];
+                    if (payloadPart) {
+                        const payloadJson = Buffer.from(payloadPart, 'base64').toString('utf8');
+                        const payload = JSON.parse(payloadJson);
+                        if (payload && typeof payload.sub === 'string') {
+                            userId = payload.sub;
+                        }
+                    }
+                } catch (_) {
+                    // Ignorar si es inválido; se tratará como anónimo
+                }
+            }
+        }
+
         return this.chatService.sendMessage(dto, userId);
     }
 
