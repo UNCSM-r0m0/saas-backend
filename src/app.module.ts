@@ -14,6 +14,7 @@ import { StripeModule } from './stripe/stripe.module';
 import { GeminiModule } from './gemini/gemini.module';
 import { OpenAIModule } from './openai/openai.module';
 import { DeepSeekModule } from './deepseek/deepseek.module';
+import { ModelsModule } from './models/models.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { DeepSeekModule } from './deepseek/deepseek.module';
     GeminiModule,
     OpenAIModule,
     DeepSeekModule,
+    ModelsModule,
   ],
   controllers: [AppController],
   providers: [AppService, UsageService],

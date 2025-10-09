@@ -38,6 +38,42 @@ export class ChatController {
     ) { }
 
     /**
+     * Obtener lista de chats del usuario
+     */
+    @Get()
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({
+        summary: 'Obtener lista de chats del usuario',
+        description: 'Retorna todos los chats del usuario autenticado',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Lista de chats obtenida exitosamente',
+        schema: {
+            type: 'object',
+            properties: {
+                chats: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id: { type: 'string' },
+                            title: { type: 'string' },
+                            createdAt: { type: 'string' },
+                            updatedAt: { type: 'string' },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    @ApiBearerAuth('JWT-auth')
+    async getChats(@Req() req: any) {
+        // Por ahora retornamos array vacío hasta implementar la lógica completa
+        return { chats: [] };
+    }
+
+    /**
      * Enviar mensaje (anónimos y registrados)
      */
     @Post('message')
