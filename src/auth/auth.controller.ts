@@ -110,18 +110,22 @@ export class AuthController {
         // Limpiar cookie antigua si existe
         res.clearCookie('auth_token', { path: '/' });
 
-        res.cookie('access_token', access_token, {
-            httpOnly: true,
-            secure: isProduction || isCrossSite, // true para prod o cross-site
-            sameSite: isCrossSite ? 'none' : 'strict', // 'none' para cross-site, 'strict' para localhost
-            path: '/',
-            maxAge: 15 * 60 * 1000, // 15 minutos (como el proyecto que funciona)
-        });
-
-        console.log('🔍 AuthController: Cookie configurada - secure:', isProduction || isCrossSite, 'sameSite:', isCrossSite ? 'none' : 'strict');
-        console.log('🔍 AuthController: Redirigiendo a frontendUrl:', frontendUrl);
-
-        return res.redirect(`${frontendUrl}/auth/callback`);
+        // Para cross-site (Vercel → ngrok), usar token en URL en lugar de cookie
+        if (isCrossSite) {
+            console.log('🔍 AuthController: Cross-site detectado, usando token en URL');
+            return res.redirect(`${frontendUrl}/auth/callback?token=${access_token}&provider=google`);
+        } else {
+            // Para localhost, usar cookies
+            res.cookie('access_token', access_token, {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: 'strict',
+                path: '/',
+                maxAge: 15 * 60 * 1000, // 15 minutos
+            });
+            console.log('🔍 AuthController: Cookie configurada para localhost');
+            return res.redirect(`${frontendUrl}/auth/callback`);
+        }
     }
 
     // GitHub OAuth
@@ -149,17 +153,22 @@ export class AuthController {
         // Limpiar cookie antigua si existe
         res.clearCookie('auth_token', { path: '/' });
 
-        res.cookie('access_token', access_token, {
-            httpOnly: true,
-            secure: isProduction || isCrossSite, // true para prod o cross-site
-            sameSite: isCrossSite ? 'none' : 'strict', // 'none' para cross-site, 'strict' para localhost
-            path: '/',
-            maxAge: 15 * 60 * 1000, // 15 minutos (como el proyecto que funciona)
-        });
-
-        console.log('🔍 AuthController: GitHub cookie configurada - secure:', isProduction || isCrossSite, 'sameSite:', isCrossSite ? 'none' : 'strict');
-
-        return res.redirect(`${frontendUrl}/auth/callback`);
+        // Para cross-site (Vercel → ngrok), usar token en URL en lugar de cookie
+        if (isCrossSite) {
+            console.log('🔍 AuthController: Cross-site detectado, usando token en URL');
+            return res.redirect(`${frontendUrl}/auth/callback?token=${access_token}&provider=github`);
+        } else {
+            // Para localhost, usar cookies
+            res.cookie('access_token', access_token, {
+                httpOnly: true,
+                secure: isProduction,
+                sameSite: 'strict',
+                path: '/',
+                maxAge: 15 * 60 * 1000, // 15 minutos
+            });
+            console.log('🔍 AuthController: Cookie configurada para localhost');
+            return res.redirect(`${frontendUrl}/auth/callback`);
+        }
     }
 
     @Post('logout')
