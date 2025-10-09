@@ -74,6 +74,61 @@ export class ChatController {
     }
 
     /**
+     * Crear un nuevo chat
+     */
+    @Post()
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({
+        summary: 'Crear un nuevo chat',
+        description: 'Crea un nuevo chat para el usuario autenticado',
+    })
+    @ApiResponse({
+        status: 201,
+        description: 'Chat creado exitosamente',
+        schema: {
+            type: 'object',
+            properties: {
+                chat: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string' },
+                        title: { type: 'string' },
+                        model: { type: 'string' },
+                        messages: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id: { type: 'string' },
+                                    role: { type: 'string' },
+                                    content: { type: 'string' },
+                                    createdAt: { type: 'string' },
+                                },
+                            },
+                        },
+                        createdAt: { type: 'string' },
+                        updatedAt: { type: 'string' },
+                    },
+                },
+            },
+        },
+    })
+    @ApiBearerAuth('JWT-auth')
+    async createChat(@Body() createChatDto: any, @Req() req: any) {
+        // Por ahora retornamos un chat de ejemplo hasta implementar la lógica completa
+        const newChat = {
+            id: crypto.randomUUID(),
+            title: createChatDto.title || 'Nuevo Chat',
+            model: createChatDto.model || 'ollama',
+            messages: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        return { chat: newChat };
+    }
+
+    /**
      * Obtener un chat específico con sus mensajes
      */
     @Get(':id')
