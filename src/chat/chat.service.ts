@@ -35,7 +35,7 @@ export class ChatService {
         // 1. Validar rate limiting
         const canSend = await this.usageService.canSendMessage(
             userId,
-            dto.anonymousId,
+            userId ? undefined : dto.anonymousId, // Solo usar anonymousId si no hay userId
         );
 
         if (!canSend.allowed) {
@@ -236,7 +236,7 @@ export class ChatService {
         await this.usageService.incrementMessageCount(
             tokensUsed,
             userId,
-            dto.anonymousId,
+            userId ? undefined : dto.anonymousId, // Solo usar anonymousId si no hay userId
         );
 
         // 10. Retornar respuesta

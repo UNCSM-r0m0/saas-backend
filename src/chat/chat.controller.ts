@@ -9,6 +9,7 @@ import {
     UseGuards,
     Req,
 } from '@nestjs/common';
+import { Public } from '../common/decorators/public.decorator';
 import {
     ApiTags,
     ApiOperation,
@@ -212,10 +213,11 @@ export class ChatController {
      * Enviar mensaje (anónimos y registrados)
      */
     @Post('message')
+    @Public() // Permitir acceso público para usuarios anónimos
     @ApiOperation({
         summary: 'Enviar mensaje al chat',
         description:
-            'Usuarios anónimos: 3 mensajes/día sin historial. Registrados: 10 mensajes/día con historial. Premium: 1000 mensajes/día + imágenes.',
+            'Usuarios anónimos: 3 mensajes/día sin historial. Registrados: 50 mensajes/día con historial. Premium: 1000 mensajes/día + imágenes.',
     })
     @ApiResponse({
         status: 200,

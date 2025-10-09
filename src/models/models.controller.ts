@@ -15,6 +15,7 @@ import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
 import { DeepSeekService } from '../deepseek/deepseek.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('models')
 @Controller('models')
@@ -24,6 +25,7 @@ export class ModelsController {
         private readonly geminiService: GeminiService,
         private readonly openaiService: OpenAIService,
         private readonly deepseekService: DeepSeekService,
+        private readonly prismaService: PrismaService,
     ) { }
 
     /**
@@ -61,8 +63,19 @@ export class ModelsController {
     })
     @ApiBearerAuth('JWT-auth')
     async getAvailableModels(@Req() req: any) {
-        // TODO: Verificar suscripción del usuario para modelos premium
-        const userHasSubscription = false; // Por ahora todos son gratuitos
+        // Verificar suscripción del usuario para modelos premium
+        const userId = req.user?.id;
+        let userHasSubscription = false;
+
+        if (userId) {
+            const subscription = await this.prismaService.subscription.findUnique({
+                where: { userId },
+                select: { tier: true, status: true }
+            });
+
+            // Solo usuarios con tier PREMIUM y suscripción activa pueden usar modelos premium
+            userHasSubscription = subscription?.tier === 'PREMIUM' && subscription?.status === 'ACTIVE';
+        }
 
         const models = [
             {
