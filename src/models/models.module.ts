@@ -8,6 +8,5 @@ import { DeepSeekModule } from '../deepseek/deepseek.module';
 @Module({
     imports: [OllamaModule, GeminiModule, OpenAIModule, DeepSeekModule],
     controllers: [ModelsController],
-    exports: [ModelsController],
 })
 export class ModelsModule { }
