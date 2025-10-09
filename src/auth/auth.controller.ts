@@ -107,6 +107,9 @@ export class AuthController {
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const isCrossSite = !frontendUrl.includes('localhost');
 
+        // Limpiar cookie antigua si existe
+        res.clearCookie('auth_token', { path: '/' });
+
         res.cookie('access_token', access_token, {
             httpOnly: true,
             secure: isProduction || isCrossSite, // true para prod o cross-site
@@ -142,6 +145,9 @@ export class AuthController {
         const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const isCrossSite = !frontendUrl.includes('localhost');
+
+        // Limpiar cookie antigua si existe
+        res.clearCookie('auth_token', { path: '/' });
 
         res.cookie('access_token', access_token, {
             httpOnly: true,
