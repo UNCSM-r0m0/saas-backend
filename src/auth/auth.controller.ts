@@ -113,7 +113,7 @@ export class AuthController {
         // Para cross-site (Vercel → ngrok), usar token en URL en lugar de cookie
         if (isCrossSite) {
             console.log('🔍 AuthController: Cross-site detectado, usando token en URL');
-            return res.redirect(`${frontendUrl}/auth/callback?token=${access_token}&provider=google`);
+            return res.redirect(`${frontendUrl}/?token=${access_token}&provider=google`);
         } else {
             // Para localhost, usar cookies
             res.cookie('access_token', access_token, {
