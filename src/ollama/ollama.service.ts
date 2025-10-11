@@ -109,7 +109,7 @@ export class OllamaService {
                 }
 
                 const chunk = decoder.decode(value);
-                this.logger.debug(`📥 Chunk raw recibido: "${chunk}"`);
+                // this.logger.debug(`📥 Chunk raw recibido: "${chunk}"`); // Comentado para reducir logs
 
                 const lines = chunk.split('\n').filter(line => line.trim());
 
@@ -128,7 +128,7 @@ export class OllamaService {
                             const content = parsed.message?.content || '';
                             if (content) {
                                 totalChunks++;
-                                this.logger.debug(`📥 Chunk ${totalChunks}: "${content}"`);
+                                // this.logger.debug(`📥 Chunk ${totalChunks}: "${content}"`); // Comentado para reducir logs
                                 yield { content: this.stripThinkTags(content) };
                             }
                         } catch (e) {

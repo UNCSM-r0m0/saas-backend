@@ -192,8 +192,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                             timestamp: new Date().toISOString()
                         });
 
-                        // Log cada 5 chunks para debug
-                        if (chunkCount % 5 === 0) {
+                        // Log cada 25 chunks para debug (reducido)
+                        if (chunkCount % 25 === 0) {
                             this.logger.log(`📥 Chunk ${chunkCount} enviado para ${chatId}: "${chunk.content}"`);
                         }
                     }
