@@ -78,6 +78,7 @@ export class OllamaService {
             this.logger.log(
                 `Generando stream con modelo ${model || this.defaultModel}`,
             );
+            this.logger.log(`📤 Payload enviado a Ollama:`, JSON.stringify(payload, null, 2));
 
             const response = await fetch(`${this.ollamaUrl}/api/chat`, {
                 method: 'POST',
@@ -96,27 +97,40 @@ export class OllamaService {
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
+            let totalChunks = 0;
+
+            this.logger.log(`📥 Iniciando lectura de stream...`);
 
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done) {
+                    this.logger.log(`📥 Stream terminado. Total chunks procesados: ${totalChunks}`);
+                    break;
+                }
 
                 const chunk = decoder.decode(value);
+                this.logger.debug(`📥 Chunk raw recibido: "${chunk}"`);
+
                 const lines = chunk.split('\n').filter(line => line.trim());
 
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         const data = line.slice(6);
-                        if (data === '[DONE]') break;
+                        if (data === '[DONE]') {
+                            this.logger.log(`📥 Stream marcado como terminado`);
+                            break;
+                        }
 
                         try {
                             const parsed = JSON.parse(data);
                             const content = parsed.message?.content || '';
                             if (content) {
+                                totalChunks++;
+                                this.logger.debug(`📥 Chunk ${totalChunks}: "${content}"`);
                                 yield { content: this.stripThinkTags(content) };
                             }
                         } catch (e) {
-                            // Ignora líneas inválidas
+                            this.logger.warn(`📥 Error parseando línea: "${line}"`);
                         }
                     }
                 }

@@ -124,29 +124,44 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             // 6. Generar stream de IA
             const model = data.model || 'deepseek-r1:7b';
-            const stream = this.ollamaService.generateStream(messages, model);
-
             let fullContent = '';
             let chunkCount = 0;
 
-            // 7. Procesar stream y emitir chunks
-            for await (const chunk of stream) {
-                if (chunk.content) {
-                    fullContent += chunk.content;
-                    chunkCount++;
+            try {
+                const stream = this.ollamaService.generateStream(messages, model);
 
-                    // Emitir chunk al cliente
-                    client.to(chatId).emit('responseChunk', {
-                        chatId,
-                        content: chunk.content,
-                        timestamp: new Date().toISOString()
-                    });
+                // 7. Procesar stream y emitir chunks
+                for await (const chunk of stream) {
+                    if (chunk.content) {
+                        fullContent += chunk.content;
+                        chunkCount++;
 
-                    // Log cada 10 chunks para no saturar
-                    if (chunkCount % 10 === 0) {
-                        this.logger.debug(`📥 Chunk ${chunkCount} enviado para ${chatId}`);
+                        // Emitir chunk al cliente
+                        client.to(chatId).emit('responseChunk', {
+                            chatId,
+                            content: chunk.content,
+                            timestamp: new Date().toISOString()
+                        });
+
+                        // Log cada 5 chunks para debug
+                        if (chunkCount % 5 === 0) {
+                            this.logger.log(`📥 Chunk ${chunkCount} enviado para ${chatId}: "${chunk.content}"`);
+                        }
                     }
                 }
+
+                this.logger.log(`✅ Stream completado para ${chatId} (${chunkCount} chunks)`);
+
+            } catch (streamError) {
+                this.logger.error(`❌ Error en stream para ${chatId}:`, streamError);
+
+                // Emitir error al cliente
+                client.to(chatId).emit('error', {
+                    message: 'Error generando respuesta. Intenta nuevamente.',
+                    code: 'STREAM_ERROR',
+                    chatId
+                });
+                return;
             }
 
             // 8. Guardar mensaje del assistant y finalizar
