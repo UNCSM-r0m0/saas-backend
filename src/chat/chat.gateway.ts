@@ -88,6 +88,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     async handleSendMessage(
         @MessageBody() data: any,
         @ConnectedSocket() client: AuthSocket,
+        callback: (ack: { status: 'ok' | 'error'; message?: string }) => void,
     ) {
         this.logger.log(`🎯 MÉTODO handleSendMessage EJECUTADO para ${client.id}`);
 
@@ -98,24 +99,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Validar que el mensaje no esté vacío
         if (!message || message.trim() === '') {
             this.logger.warn(`❌ Mensaje vacío recibido de ${client.id}`);
-            client.emit('error', {
-                message: 'El mensaje no puede estar vacío.',
-                code: 'EMPTY_MESSAGE',
-                chatId
-            });
+            callback({ status: 'error', message: 'El mensaje no puede estar vacío.' });
             return;
         }
 
         // 0. Enviar ACK inmediato al cliente ANTES de procesar
-        const ackResponse = { status: 'ok', message: 'Mensaje recibido' };
+        const ackResponse = { status: 'ok' as const, message: 'Mensaje recibido' };
 
         this.logger.log(`📤 Enviando ACK inmediato a ${client.id}:`, ackResponse);
 
+        // Enviar ACK usando el callback (esto es lo que espera el .timeout(...) del cliente)
+        callback(ackResponse);
+
         // Procesar en background sin bloquear el ACK
         this.processMessageInBackground(client, data, userId, chatId, message);
-
-        // Retornar ACK inmediatamente (Socket.io lo envía como callback)
-        return ackResponse;
     }
 
     private async processMessageInBackground(
