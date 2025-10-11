@@ -50,6 +50,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 this.logger.log(`🎯 EVENTO RECIBIDO: ${eventName} de ${client.id}`, args);
             });
 
+            this.logger.log(`🔗 Namespace usado: ${client.nsp?.name}`); // Debe ser '/chat'
+
             // Extraer token del handshake
             const token = this.extractTokenFromSocket(client);
             this.logger.debug(`🔍 Token extraído para ${client.id}:`, token ? 'Presente' : 'Ausente');
@@ -211,8 +213,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 await this.chatService.saveAssistantMessage(chatId, userId, fullContent);
                 await this.usageService.incrementMessageCount(0, userId);
             } else {
-                // Para usuarios anónimos, usar anonymousId basado en el socket ID
-                const anonymousId = `anonymous-${client.id}`;
+                // Para usuarios anónimos: chatId ya es anonymous-${client.id}
+                await this.chatService.saveAssistantMessage(chatId, null, fullContent);
+                const anonymousId = chatId; // Reusa chatId como ID
                 await this.usageService.incrementMessageCount(0, undefined, anonymousId);
             }
 
@@ -266,26 +269,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const headers = client.handshake?.headers;
 
         // 1. De auth.token
-        if (auth?.token) {
+        if (auth?.token && typeof auth.token === 'string') {
             return auth.token;
         }
 
         // 2. De query.token
-        if (query?.token) {
-            return Array.isArray(query.token) ? query.token[0] : query.token;
+        if (query?.token && typeof query.token === 'string') {
+            return query.token;
+        } else if (Array.isArray(query?.token) && query.token.length > 0) {
+            return query.token[0];
         }
 
-        // 3. De Authorization header
-        if (headers?.authorization) {
-            const authHeader = headers.authorization as string;
-            if (authHeader.startsWith('Bearer ')) {
-                return authHeader.substring(7);
+        // 3. De Authorization header (SAFE: check type)
+        const authHeader = headers?.authorization;
+        if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+            return authHeader.substring(7); // Línea 76: ahora safe
+        } else if (Array.isArray(authHeader) && authHeader.length > 0) {
+            const headerStr = authHeader[0];
+            if (typeof headerStr === 'string' && headerStr.startsWith('Bearer ')) {
+                return headerStr.substring(7);
             }
         }
 
         // 4. De cookie (si está disponible)
-        if (headers?.cookie) {
-            const cookies = this.parseCookies(headers.cookie as string);
+        const cookieHeader = headers?.cookie;
+        if (typeof cookieHeader === 'string') {
+            const cookies = this.parseCookies(cookieHeader);
             return cookies['access_token'] || cookies['token'];
         }
 
