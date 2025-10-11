@@ -131,7 +131,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             try {
                 const stream = this.ollamaService.generateStream(messages, model);
 
-                // 7. Procesar stream y emitir chunks
+                // 7. Emitir evento de inicio de respuesta
+                client.to(chatId).emit('responseStart', {
+                    chatId,
+                    content: 'Pensando...',
+                    timestamp: new Date().toISOString()
+                });
+
+                // 8. Procesar stream y emitir chunks
                 for await (const chunk of stream) {
                     if (chunk.content) {
                         fullContent += chunk.content;
@@ -165,7 +172,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 return;
             }
 
-            // 8. Guardar mensaje del assistant y finalizar
+            // 9. Guardar mensaje del assistant y finalizar
             if (userId) {
                 await this.chatService.saveAssistantMessage(chatId, userId, fullContent);
                 await this.usageService.incrementMessageCount(userId);

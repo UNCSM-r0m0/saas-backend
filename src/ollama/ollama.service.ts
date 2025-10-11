@@ -114,15 +114,17 @@ export class OllamaService {
                 const lines = chunk.split('\n').filter(line => line.trim());
 
                 for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') {
-                            this.logger.log(`📥 Stream marcado como terminado`);
-                            break;
-                        }
-
+                    // Ollama envía JSON directamente, no SSE format
+                    if (line.trim()) {
                         try {
-                            const parsed = JSON.parse(data);
+                            const parsed = JSON.parse(line);
+
+                            // Verificar si es el chunk final
+                            if (parsed.done === true) {
+                                this.logger.log(`📥 Stream marcado como terminado`);
+                                break;
+                            }
+
                             const content = parsed.message?.content || '';
                             if (content) {
                                 totalChunks++;
