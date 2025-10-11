@@ -234,20 +234,43 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             try {
                 const stream = this.ollamaService.generateStream(messages, model);
 
+                // Pegador inteligente para espacios
+                const isAlphaNum = (ch: string) => /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(ch);
+                const needsSpaceBetween = (a: string, b: string) => {
+                    if (!a || !b) return false;
+                    const last = a[a.length - 1];
+                    const first = b[0];
+                    // si el chunk ya trae espacio/nueva línea, no hacemos nada
+                    if (first === ' ' || first === '\n' || first === '\t') return false;
+                    // no ponemos espacio antes de puntuación
+                    if (/[.,;:!?)]/.test(first)) return false;
+                    // si el anterior termina con apertura o salto, tampoco
+                    if (/[(\n\t ]/.test(last)) return false;
+                    // letra/número pegado a letra/número → sí espacio
+                    return isAlphaNum(last) && isAlphaNum(first);
+                };
+
                 for await (const chunk of stream) {
                     if (aborted) break;
-                    if (chunk?.content) {
-                        const piece = this.stripThink(chunk.content); // ✅ Filtrar pensamiento
-                        fullContent += piece;
-                        buffer += piece; // NO hacer trim al piece
-                        chunkCount++;
+                    const piece = chunk?.content ?? '';
+                    if (!piece) continue;
 
-                        // flush por tamaño también
-                        if (buffer.length >= 800) flush();
+                    // Filtrar pensamiento
+                    const cleanPiece = this.stripThink(piece);
+                    if (!cleanPiece) continue;
 
-                        if (chunkCount % 50 === 0) {
-                            this.logger.log(`📥 Chunk ${chunkCount} (batched) para ${chatId}`);
-                        }
+                    // pega con espacio solo si hace falta
+                    const glue = needsSpaceBetween(fullContent, cleanPiece) ? ' ' : '';
+
+                    fullContent += glue + cleanPiece;
+                    buffer += glue + cleanPiece;
+                    chunkCount++;
+
+                    // flush por tamaño también
+                    if (buffer.length >= 800) flush();
+
+                    if (chunkCount % 50 === 0) {
+                        this.logger.log(`📥 Chunk ${chunkCount} (batched) para ${chatId}`);
                     }
                 }
 
