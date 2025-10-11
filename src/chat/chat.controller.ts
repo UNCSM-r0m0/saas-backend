@@ -146,6 +146,115 @@ export class ChatController {
     }
 
     /**
+     * Obtener modelos de IA disponibles
+     */
+    @Get('models')
+    @UseGuards(JwtAuthGuard)
+    @ApiOperation({
+        summary: 'Obtener modelos de IA disponibles según tier de suscripción',
+        description: 'Lista los modelos de IA disponibles filtrados por el tier de suscripción del usuario',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Lista de modelos disponibles filtrados por tier',
+        schema: {
+            example: {
+                models: [
+                    {
+                        id: 'ollama',
+                        name: 'Ollama Local',
+                        provider: 'Local',
+                        available: true,
+                        isPremium: false,
+                        features: ['text-generation', 'local-processing'],
+                        description: 'Modelo local ejecutándose en tu servidor'
+                    },
+                    {
+                        id: 'gemini',
+                        name: 'Gemini 2.0 Flash',
+                        provider: 'Google',
+                        available: true,
+                        isPremium: true,
+                        features: ['text-generation', 'multimodal', 'streaming'],
+                        description: 'Modelo avanzado de Google con capacidades multimodales'
+                    }
+                ]
+            }
+        }
+    })
+    async getAvailableModels(@Request() req: any) {
+        console.log('🔍 getAvailableModels: Iniciando...');
+        const userId = req.user?.id ?? req.user?.sub ?? null;
+        console.log('🔍 getAvailableModels: userId:', userId);
+
+        // Obtener tier del usuario
+        let userTier = 'ANONYMOUS';
+        if (userId) {
+            const subscription = await this.subscriptionsService.getOrCreateSubscription(userId);
+            userTier = subscription?.tier || 'REGISTERED';
+            console.log('🔍 getAvailableModels: subscription:', subscription);
+            console.log('🔍 getAvailableModels: userTier:', userTier);
+        }
+
+        const allModels = [
+            {
+                id: 'ollama',
+                name: 'Ollama Local',
+                provider: 'Local',
+                available: this.ollamaService.isAvailable(),
+                isPremium: false,
+                features: ['text-generation', 'local-processing'],
+                description: 'Modelo local ejecutándose en tu servidor',
+                defaultModel: 'deepseek-r1:7b'
+            },
+            {
+                id: 'gemini',
+                name: 'Gemini 2.0 Flash',
+                provider: 'Google',
+                available: this.geminiService.isAvailable(),
+                isPremium: true,
+                features: ['text-generation', 'multimodal', 'streaming'],
+                description: 'Modelo avanzado de Google con capacidades multimodales',
+                defaultModel: 'gemini-2.0-flash-exp'
+            },
+            {
+                id: 'openai',
+                name: 'GPT-4o Mini',
+                provider: 'OpenAI',
+                available: this.openaiService.isAvailable(),
+                isPremium: true,
+                features: ['text-generation', 'streaming', 'chat-completions'],
+                description: 'Modelo de OpenAI optimizado para chat y conversaciones',
+                defaultModel: 'gpt-4o-mini'
+            },
+            {
+                id: 'deepseek',
+                name: 'DeepSeek Chat',
+                provider: 'DeepSeek',
+                available: this.deepseekService.isAvailable(),
+                isPremium: true,
+                features: ['text-generation', 'cost-effective', 'high-performance'],
+                description: 'Modelo de DeepSeek con excelente relación precio-calidad',
+                defaultModel: 'deepseek-chat'
+            }
+        ];
+
+        // Filtrar modelos según el tier del usuario
+        const availableModels = allModels.filter(model => {
+            // Modelos locales siempre disponibles
+            if (!model.isPremium) return true;
+
+            // Modelos premium solo para usuarios PREMIUM
+            return userTier === 'PREMIUM';
+        });
+
+        console.log('🔍 getAvailableModels: availableModels:', availableModels);
+        console.log('🔍 getAvailableModels: Devolviendo respuesta...');
+
+        return { models: availableModels };
+    }
+
+    /**
      * Obtener un chat específico con sus mensajes
      */
     @Get(':id')
@@ -394,108 +503,6 @@ export class ChatController {
     })
     async getUserStats(@Req() req: any) {
         return this.chatService.getUserUsageStats(req.user.id);
-    }
-
-    /**
-     * Obtener modelos de IA disponibles
-     */
-    @Get('models')
-    @UseGuards(JwtAuthGuard)
-    @ApiOperation({
-        summary: 'Obtener modelos de IA disponibles según tier de suscripción',
-        description: 'Lista los modelos de IA disponibles filtrados por el tier de suscripción del usuario',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Lista de modelos disponibles filtrados por tier',
-        schema: {
-            example: {
-                models: [
-                    {
-                        id: 'ollama',
-                        name: 'Ollama Local',
-                        provider: 'Local',
-                        available: true,
-                        isPremium: false,
-                        features: ['text-generation', 'local-processing'],
-                        description: 'Modelo local ejecutándose en tu servidor'
-                    },
-                    {
-                        id: 'gemini',
-                        name: 'Gemini 2.0 Flash',
-                        provider: 'Google',
-                        available: true,
-                        isPremium: true,
-                        features: ['text-generation', 'multimodal', 'streaming'],
-                        description: 'Modelo avanzado de Google con capacidades multimodales'
-                    }
-                ]
-            }
-        }
-    })
-    async getAvailableModels(@Request() req: any) {
-        const userId = req.user?.id ?? req.user?.sub ?? null;
-
-        // Obtener tier del usuario
-        let userTier = 'ANONYMOUS';
-        if (userId) {
-            const subscription = await this.subscriptionsService.getOrCreateSubscription(userId);
-            userTier = subscription?.tier || 'REGISTERED';
-        }
-
-        const allModels = [
-            {
-                id: 'ollama',
-                name: 'Ollama Local',
-                provider: 'Local',
-                available: this.ollamaService.isAvailable(),
-                isPremium: false,
-                features: ['text-generation', 'local-processing'],
-                description: 'Modelo local ejecutándose en tu servidor',
-                defaultModel: 'deepseek-r1:7b'
-            },
-            {
-                id: 'gemini',
-                name: 'Gemini 2.0 Flash',
-                provider: 'Google',
-                available: this.geminiService.isAvailable(),
-                isPremium: true,
-                features: ['text-generation', 'multimodal', 'streaming'],
-                description: 'Modelo avanzado de Google con capacidades multimodales',
-                defaultModel: 'gemini-2.0-flash-exp'
-            },
-            {
-                id: 'openai',
-                name: 'GPT-4o Mini',
-                provider: 'OpenAI',
-                available: this.openaiService.isAvailable(),
-                isPremium: true,
-                features: ['text-generation', 'streaming', 'chat-completions'],
-                description: 'Modelo de OpenAI optimizado para chat y conversaciones',
-                defaultModel: 'gpt-4o-mini'
-            },
-            {
-                id: 'deepseek',
-                name: 'DeepSeek Chat',
-                provider: 'DeepSeek',
-                available: this.deepseekService.isAvailable(),
-                isPremium: true,
-                features: ['text-generation', 'cost-effective', 'high-performance'],
-                description: 'Modelo de DeepSeek con excelente relación precio-calidad',
-                defaultModel: 'deepseek-chat'
-            }
-        ];
-
-        // Filtrar modelos según el tier del usuario
-        const availableModels = allModels.filter(model => {
-            // Modelos locales siempre disponibles
-            if (!model.isPremium) return true;
-
-            // Modelos premium solo para usuarios PREMIUM
-            return userTier === 'PREMIUM';
-        });
-
-        return { models: availableModels };
     }
 
     // ========== ENDPOINTS REST PARA GESTIÓN DE CHATS ==========
