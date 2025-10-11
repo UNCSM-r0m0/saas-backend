@@ -26,6 +26,10 @@ interface AuthSocket extends Socket {
         credentials: true,
     },
     namespace: '/chat',
+    transports: ['websocket'],
+    pingTimeout: 60000,        // antes 20000
+    pingInterval: 25000,       // default ok
+    perMessageDeflate: false,  // MUY importante con proxys
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly logger = new Logger(ChatGateway.name);
@@ -84,8 +88,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
     }
 
-    handleDisconnect(client: Socket) {
-        this.logger.log(`❌ Cliente desconectado: ${client.id}`);
+    handleDisconnect(client: Socket, reason: string) {
+        this.logger.log(`❌ Cliente desconectado: ${client.id} (${reason})`);
     }
 
     @SubscribeMessage('sendMessage')
@@ -197,34 +201,68 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             const history = userId ? await this.chatService.getConversationHistory(chatId) : [];
             const messages = [...history, { role: 'user' as const, content: message }];
 
-            // 6) Generar stream IA
+            // 6) Generar stream IA con batching
             const model = data.model || 'deepseek-r1:7b';
             let fullContent = '';
             let chunkCount = 0;
+
+            // === Buffer de envío ===
+            let buffer = '';
+            let aborted = false;
+
+            const flush = () => {
+                if (!buffer || aborted) return;
+                this.emitChat(client, chatId, 'responseChunk', {
+                    chatId,
+                    content: buffer,
+                    timestamp: new Date().toISOString(),
+                });
+                buffer = '';
+            };
+
+            // flush cada 60ms
+            const flushTimer = setInterval(flush, 60);
+
+            // abortar si el cliente se desconecta (no sigas consumiendo CPU)
+            const onDisconnect = (reason: string) => {
+                aborted = true;
+                this.logger.warn(`⚠️ Cliente desconectado durante stream: ${client.id} (${reason})`);
+            };
+            client.once('disconnect', onDisconnect);
 
             try {
                 const stream = this.ollamaService.generateStream(messages, model);
 
                 for await (const chunk of stream) {
+                    if (aborted) break;
                     if (chunk?.content) {
                         fullContent += chunk.content;
+                        buffer += chunk.content;
                         chunkCount++;
 
-                        // 7) Emitir chunk al chat (según flag de broadcast)
-                        this.emitChat(client, chatId, 'responseChunk', {
-                            chatId,
-                            content: chunk.content,
-                            timestamp: new Date().toISOString(),
-                        });
+                        // flush por tamaño también
+                        if (buffer.length >= 800) flush();
 
-                        if (chunkCount % 25 === 0) {
-                            this.logger.log(`📥 Chunk ${chunkCount} enviado para ${chatId}`);
+                        if (chunkCount % 50 === 0) {
+                            this.logger.log(`📥 Chunk ${chunkCount} (batched) para ${chatId}`);
                         }
                     }
                 }
 
-                this.logger.log(`✅ Stream completado para ${chatId} (${chunkCount} chunks)`);
+                // flush final
+                flush();
+                clearInterval(flushTimer);
+                client.off('disconnect', onDisconnect);
+
+                if (aborted) {
+                    this.logger.warn(`⚠️ Stream abortado (cliente desconectado) ${chatId} tras ${chunkCount} chunks`);
+                    return; // opcional: persistir parcial o no
+                }
+
+                this.logger.log(`✅ Stream completado para ${chatId} (${chunkCount} chunks batched)`);
             } catch (streamError) {
+                clearInterval(flushTimer);
+                client.off('disconnect', onDisconnect);
                 this.logger.error(`❌ Error en stream para ${chatId}:`, streamError);
 
                 // Error del stream → informar según flag de broadcast
@@ -342,3 +380,4 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return cookies;
     }
 }
+
