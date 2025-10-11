@@ -183,17 +183,13 @@ export class ChatController {
         }
     })
     async getAvailableModels(@Request() req: any) {
-        console.log('🔍 getAvailableModels: Iniciando...');
         const userId = req.user?.id ?? req.user?.sub ?? null;
-        console.log('🔍 getAvailableModels: userId:', userId);
 
         // Obtener tier del usuario
         let userTier = 'ANONYMOUS';
         if (userId) {
             const subscription = await this.subscriptionsService.getOrCreateSubscription(userId);
             userTier = subscription?.tier || 'REGISTERED';
-            console.log('🔍 getAvailableModels: subscription:', subscription);
-            console.log('🔍 getAvailableModels: userTier:', userTier);
         }
 
         const allModels = [
@@ -247,9 +243,6 @@ export class ChatController {
             // Modelos premium solo para usuarios PREMIUM
             return userTier === 'PREMIUM';
         });
-
-        console.log('🔍 getAvailableModels: availableModels:', availableModels);
-        console.log('🔍 getAvailableModels: Devolviendo respuesta...');
 
         return { models: availableModels };
     }
