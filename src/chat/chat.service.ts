@@ -567,7 +567,7 @@ export class ChatService {
     /**
      * Guarda un mensaje del assistant en la base de datos
      */
-    async saveAssistantMessage(conversationId: string, userId: string, content: string) {
+    async saveAssistantMessage(conversationId: string, userId: string | null, content: string) {
         try {
             return await this.prisma.message.create({
                 data: {
