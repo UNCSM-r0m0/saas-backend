@@ -77,6 +77,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @MessageBody() data: any,
         @ConnectedSocket() client: AuthSocket,
     ) {
+        this.logger.log(`🎯 MÉTODO handleSendMessage EJECUTADO para ${client.id}`);
+
         const userId = client.user?.sub; // Del JWT
         const chatId = data.chatId || `anonymous-${client.id}`;
         const message = data.message || data.content || '';
