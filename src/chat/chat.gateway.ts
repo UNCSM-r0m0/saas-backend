@@ -88,7 +88,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     async handleSendMessage(
         @MessageBody() data: any,
         @ConnectedSocket() client: AuthSocket,
-        callback: (ack: { status: 'ok' | 'error'; message?: string }) => void,
     ) {
         this.logger.log(`🎯 MÉTODO handleSendMessage EJECUTADO para ${client.id}`);
 
@@ -99,7 +98,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Validar que el mensaje no esté vacío
         if (!message || message.trim() === '') {
             this.logger.warn(`❌ Mensaje vacío recibido de ${client.id}`);
-            callback({ status: 'error', message: 'El mensaje no puede estar vacío.' });
+            client.emit('error', { status: 'error', message: 'El mensaje no puede estar vacío.' });
             return;
         }
 
@@ -108,8 +107,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         this.logger.log(`📤 Enviando ACK inmediato a ${client.id}:`, ackResponse);
 
-        // Enviar ACK usando el callback (esto es lo que espera el .timeout(...) del cliente)
-        callback(ackResponse);
+        // Enviar ACK usando client.emit (NestJS no pasa callback automáticamente)
+        client.emit('sendMessage', ackResponse);
 
         // Procesar en background sin bloquear el ACK
         this.processMessageInBackground(client, data, userId, chatId, message);
