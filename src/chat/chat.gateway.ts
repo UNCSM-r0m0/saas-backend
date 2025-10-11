@@ -51,14 +51,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 headers: client.handshake?.headers
             });
 
-            // Agregar listener para cualquier evento
+            // Debug fino con onAny (sin interferir con callbacks)
             client.onAny((eventName, ...args) => {
-                this.logger.log(`🎯 EVENTO RECIBIDO: ${eventName} de ${client.id}`, args);
-            });
-
-            // Listener específico para sendMessage
-            client.on('sendMessage', (data) => {
-                this.logger.log(`🎯 SENDMESSAGE RECIBIDO de ${client.id}:`, data);
+                this.logger.log(`🎯 EVENTO ${eventName} de ${client.id}`, {
+                    argsLen: args.length,
+                    hasAck: typeof args[args.length - 1] === 'function'
+                });
             });
 
             this.logger.log(`🔗 Namespace usado: ${client.nsp?.name}`); // Debe ser '/chat'
@@ -92,25 +90,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     @SubscribeMessage('sendMessage')
     async handleSendMessage(
-        @MessageBody()
-        data: {
+        @MessageBody() data: {
             message?: string;
             content?: string;
             chatId?: string;
             model?: string;
-            /** si llega false, responde solo al emisor; default true */
             broadcast?: boolean;
         },
         @ConnectedSocket() client: AuthSocket,
-        callback: (ack: { status: 'ok' | 'error'; message?: string }) => void,
+        callback?: (ack: { status: 'ok' | 'error'; message?: string }) => void,
     ) {
-        this.logger.log(`🎯 MÉTODO handleSendMessage EJECUTADO para ${client.id}`);
+        this.logger.log(`🎯 MÉTODO handleSendMessage para ${client.id}`);
 
         const chatId = data.chatId || `anonymous-${client.id}`;
-        const message = (data.message || data.content || '').trim();
+        const message = (data.message ?? data.content ?? '').trim();
 
         if (!message) {
-            callback({ status: 'error', message: 'El mensaje no puede estar vacío.' });
+            if (typeof callback === 'function') {
+                callback({ status: 'error', message: 'El mensaje no puede estar vacío.' });
+            } else {
+                client.emit('error', { message: 'El mensaje no puede estar vacío.', code: 'BAD_REQUEST', chatId });
+            }
             return;
         }
 
@@ -118,17 +118,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const broadcast = data.broadcast !== false; // default true
         this.chatBroadcast.set(chatId, broadcast);
 
-        this.logger.log(`📡 Modo broadcast para ${chatId}: ${broadcast ? 'SALA' : 'SOLO_EMISOR'}`);
+        this.logger.log(`📡 Broadcast(${chatId}) = ${broadcast ? 'SALA' : 'SOLO_EMISOR'}`);
 
-        // ✅ ACK nativo de Socket.IO
-        callback({ status: 'ok', message: 'Mensaje recibido' });
+        // ✅ ACK inmediato
+        if (typeof callback === 'function') {
+            callback({ status: 'ok', message: 'Mensaje recibido' });
+        } else {
+            this.logger.warn('⚠️ No vino callback de ACK (client.timeout?)');
+        }
 
         // Procesar en background
         this.processMessageInBackground(client, data, client.user?.sub, chatId, message);
     }
 
     private ensureJoined(client: AuthSocket, roomId: string) {
-        // En Socket.IO v4, client.rooms es un Set
         if (!client.rooms.has(roomId)) {
             client.join(roomId);
         }
@@ -141,10 +144,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         event: string,
         payload: any,
     ) {
-        const broadcast = this.chatBroadcast.get(chatId) ?? true; // por defecto a sala
+        const broadcast = this.chatBroadcast.get(chatId) ?? true;
         if (broadcast) {
             this.server.to(chatId).emit(event, payload);
         } else {
+            // Siempre garantizamos que el emisor lo reciba
             client.emit(event, payload);
         }
     }
