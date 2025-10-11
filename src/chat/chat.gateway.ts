@@ -73,20 +73,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const chatId = data.chatId || `anonymous-${client.id}`;
         const message = data.message || data.content || '';
 
+        // Validar que el mensaje no esté vacío
+        if (!message || message.trim() === '') {
+            this.logger.warn(`❌ Mensaje vacío recibido de ${client.id}`);
+            client.emit('error', {
+                message: 'El mensaje no puede estar vacío.',
+                code: 'EMPTY_MESSAGE',
+                chatId
+            });
+            return;
+        }
+
         try {
             // Debug: Log completo del payload recibido
             this.logger.log(`📤 Payload recibido de ${client.id}:`, JSON.stringify(data, null, 2));
             this.logger.log(`📤 Mensaje extraído: "${message}"`);
-
-            if (!message || message.trim() === '') {
-                this.logger.error(`❌ Mensaje vacío recibido de ${client.id}`);
-                client.emit('error', {
-                    message: 'Mensaje vacío recibido.',
-                    code: 'EMPTY_MESSAGE',
-                    chatId
-                });
-                return;
-            }
 
             // 1. Validar límites si está autenticado
             if (userId) {
