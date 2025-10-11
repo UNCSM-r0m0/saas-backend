@@ -92,14 +92,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             return;
         }
 
+        // 0. Enviar ACK inmediato al cliente ANTES de procesar
+        const ackResponse = { status: 'ok', message: 'Mensaje recibido' };
+
+        // Procesar en background sin bloquear el ACK
+        this.processMessageInBackground(client, data, userId, chatId, message);
+
+        // Retornar ACK inmediatamente
+        return ackResponse;
+    }
+
+    private async processMessageInBackground(
+        client: AuthSocket,
+        data: any,
+        userId: string | undefined,
+        chatId: string,
+        message: string
+    ) {
         try {
             // Debug: Log completo del payload recibido
             this.logger.log(`📤 Payload recibido de ${client.id}:`, JSON.stringify(data, null, 2));
             this.logger.log(`📤 Mensaje extraído: "${message}"`);
-
-            // 0. Enviar ACK inmediato al cliente
-            // En Socket.io, el return del método se envía como ACK
-            const ackResponse = { status: 'ok', message: 'Mensaje recibido' };
 
             // 1. Validar límites si está autenticado
             if (userId) {
@@ -202,9 +215,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             this.logger.log(`✅ Respuesta completada para ${chatId} (${chunkCount} chunks)`);
 
-            // Retornar ACK al final del procesamiento
-            return ackResponse;
-
         } catch (error) {
             this.logger.error(`❌ Error en sendMessage para ${chatId}:`, error);
 
@@ -213,9 +223,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 code: 'PROCESSING_ERROR',
                 chatId
             });
-
-            // Retornar error como ACK
-            return { status: 'error', message: 'Error al procesar mensaje' };
         }
     }
 
