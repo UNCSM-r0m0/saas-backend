@@ -76,7 +76,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     async handleSendMessage(
         @MessageBody() data: any,
         @ConnectedSocket() client: AuthSocket,
-    ) {
+    ): Promise<any> {
         const userId = client.user?.sub; // Del JWT
         const chatId = data.chatId || `anonymous-${client.id}`;
         const message = data.message || data.content || '';
@@ -98,7 +98,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             this.logger.log(`📤 Mensaje extraído: "${message}"`);
 
             // 0. Enviar ACK inmediato al cliente
-            client.emit('sendMessage', { status: 'ok', message: 'Mensaje recibido' });
+            // En Socket.io, el return del método se envía como ACK
+            const ackResponse = { status: 'ok', message: 'Mensaje recibido' };
 
             // 1. Validar límites si está autenticado
             if (userId) {
@@ -201,6 +202,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             this.logger.log(`✅ Respuesta completada para ${chatId} (${chunkCount} chunks)`);
 
+            // Retornar ACK al final del procesamiento
+            return ackResponse;
+
         } catch (error) {
             this.logger.error(`❌ Error en sendMessage para ${chatId}:`, error);
 
@@ -209,6 +213,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 code: 'PROCESSING_ERROR',
                 chatId
             });
+
+            // Retornar error como ACK
+            return { status: 'error', message: 'Error al procesar mensaje' };
         }
     }
 
