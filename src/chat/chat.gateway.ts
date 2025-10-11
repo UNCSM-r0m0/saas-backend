@@ -95,11 +95,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // 0. Enviar ACK inmediato al cliente ANTES de procesar
         const ackResponse = { status: 'ok', message: 'Mensaje recibido' };
 
+        this.logger.log(`📤 Enviando ACK inmediato a ${client.id}:`, ackResponse);
+
         // Procesar en background sin bloquear el ACK
         this.processMessageInBackground(client, data, userId, chatId, message);
 
-        // Enviar ACK usando emit directo
-        client.emit('sendMessage', ackResponse);
+        // Retornar ACK inmediatamente (Socket.io lo envía como callback)
+        return ackResponse;
     }
 
     private async processMessageInBackground(
