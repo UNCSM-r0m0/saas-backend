@@ -76,7 +76,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     async handleSendMessage(
         @MessageBody() data: any,
         @ConnectedSocket() client: AuthSocket,
-    ): Promise<any> {
+    ) {
         const userId = client.user?.sub; // Del JWT
         const chatId = data.chatId || `anonymous-${client.id}`;
         const message = data.message || data.content || '';
@@ -98,8 +98,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // Procesar en background sin bloquear el ACK
         this.processMessageInBackground(client, data, userId, chatId, message);
 
-        // Retornar ACK inmediatamente
-        return ackResponse;
+        // Enviar ACK usando emit directo
+        client.emit('sendMessage', ackResponse);
     }
 
     private async processMessageInBackground(
