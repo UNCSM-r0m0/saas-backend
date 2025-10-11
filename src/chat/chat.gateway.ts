@@ -50,6 +50,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 this.logger.log(`🎯 EVENTO RECIBIDO: ${eventName} de ${client.id}`, args);
             });
 
+            // Listener específico para sendMessage
+            client.on('sendMessage', (data) => {
+                this.logger.log(`🎯 SENDMESSAGE RECIBIDO de ${client.id}:`, data);
+            });
+
             this.logger.log(`🔗 Namespace usado: ${client.nsp?.name}`); // Debe ser '/chat'
 
             // Extraer token del handshake
