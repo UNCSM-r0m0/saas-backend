@@ -45,6 +45,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 headers: client.handshake?.headers
             });
 
+            // Agregar listener para cualquier evento
+            client.onAny((eventName, ...args) => {
+                this.logger.log(`🎯 EVENTO RECIBIDO: ${eventName} de ${client.id}`, args);
+            });
+
             // Extraer token del handshake
             const token = this.extractTokenFromSocket(client);
             this.logger.debug(`🔍 Token extraído para ${client.id}:`, token ? 'Presente' : 'Ausente');
