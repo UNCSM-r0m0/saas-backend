@@ -350,15 +350,26 @@ export class ChatService {
      * Obtiene el historial de una conversación
      */
     async getConversationHistory(conversationId: string) {
-        return this.prisma.message.findMany({
-            where: { conversationId },
-            orderBy: { createdAt: 'asc' },
-            take: 20, // Últimos 20 mensajes para contexto
-            select: {
-                role: true,
-                content: true,
-            },
-        });
+        try {
+            const messages = await this.prisma.message.findMany({
+                where: { conversationId },
+                orderBy: { createdAt: 'asc' },
+                take: 20, // Últimos 20 mensajes para contexto
+                select: {
+                    role: true,
+                    content: true,
+                },
+            });
+
+            // Convertir a formato Ollama
+            return messages.map(msg => ({
+                role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
+                content: msg.content,
+            }));
+        } catch (error) {
+            this.logger.error('Error obteniendo historial:', error);
+            return [];
+        }
     }
 
     /**
@@ -533,4 +544,43 @@ export class ChatService {
             },
         };
     }
+
+    /**
+     * Guarda un mensaje del usuario en la base de datos
+     */
+    async saveUserMessage(conversationId: string, userId: string, content: string) {
+        try {
+            return await this.prisma.message.create({
+                data: {
+                    conversationId,
+                    userId,
+                    role: MessageRole.USER,
+                    content,
+                },
+            });
+        } catch (error) {
+            this.logger.error('Error guardando mensaje del usuario:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Guarda un mensaje del assistant en la base de datos
+     */
+    async saveAssistantMessage(conversationId: string, userId: string, content: string) {
+        try {
+            return await this.prisma.message.create({
+                data: {
+                    conversationId,
+                    userId,
+                    role: MessageRole.ASSISTANT,
+                    content,
+                },
+            });
+        } catch (error) {
+            this.logger.error('Error guardando mensaje del assistant:', error);
+            throw error;
+        }
+    }
+
 }

@@ -15,6 +15,7 @@ import { GeminiModule } from './gemini/gemini.module';
 import { OpenAIModule } from './openai/openai.module';
 import { DeepSeekModule } from './deepseek/deepseek.module';
 import { ModelsModule } from './models/models.module';
+import { ChatGateway } from './chat/chat.gateway';
 
 @Module({
   imports: [
@@ -68,6 +69,6 @@ import { ModelsModule } from './models/models.module';
     ModelsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, UsageService],
+  providers: [AppService, UsageService, ChatGateway],
 })
 export class AppModule { }
