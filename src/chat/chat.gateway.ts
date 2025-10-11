@@ -186,7 +186,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // 9. Guardar mensaje del assistant y finalizar
             if (userId) {
                 await this.chatService.saveAssistantMessage(chatId, userId, fullContent);
-                await this.usageService.incrementMessageCount(userId);
+                await this.usageService.incrementMessageCount(0, userId);
+            } else {
+                // Para usuarios anónimos, usar anonymousId basado en el socket ID
+                const anonymousId = `anonymous-${client.id}`;
+                await this.usageService.incrementMessageCount(0, undefined, anonymousId);
             }
 
             client.to(chatId).emit('responseEnd', {
