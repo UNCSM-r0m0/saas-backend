@@ -38,8 +38,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     async handleConnection(client: AuthSocket) {
         try {
+            // Debug: Log del handshake completo
+            this.logger.debug(`🔍 Handshake para cliente ${client.id}:`, {
+                auth: client.handshake?.auth,
+                query: client.handshake?.query,
+                headers: client.handshake?.headers
+            });
+
             // Extraer token del handshake
             const token = this.extractTokenFromSocket(client);
+            this.logger.debug(`🔍 Token extraído para ${client.id}:`, token ? 'Presente' : 'Ausente');
 
             if (token) {
                 try {
@@ -47,7 +55,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                     client.user = payload;
                     this.logger.log(`✅ Cliente autenticado conectado: ${client.id} (User: ${payload.sub})`);
                 } catch (error) {
-                    this.logger.warn(`❌ Token inválido para cliente: ${client.id}`);
+                    this.logger.warn(`❌ Token inválido para cliente: ${client.id}`, error.message);
                     client.user = null; // Cliente anónimo
                 }
             } else {
