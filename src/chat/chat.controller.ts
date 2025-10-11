@@ -296,6 +296,7 @@ export class ChatController {
     })
     @ApiBearerAuth('JWT-auth')
     async getChat(@Param('id') id: string, @Req() req: any) {
+        console.log('🔍 getChat: Iniciando con id:', id);
         const userId = req.user?.id;
 
         if (!userId) {
