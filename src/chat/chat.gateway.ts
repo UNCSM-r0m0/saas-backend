@@ -6,9 +6,10 @@ import {
     OnGatewayConnection,
     OnGatewayDisconnect,
     WsException,
+    WebSocketServer,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
-import { Socket } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
 import { OllamaService } from '../ollama/ollama.service';
@@ -28,6 +29,8 @@ interface AuthSocket extends Socket {
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly logger = new Logger(ChatGateway.name);
+
+    @WebSocketServer() server: Server;
 
     constructor(
         private chatService: ChatService,
@@ -88,30 +91,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     async handleSendMessage(
         @MessageBody() data: any,
         @ConnectedSocket() client: AuthSocket,
+        callback: (ack: { status: 'ok' | 'error'; message?: string }) => void,
     ) {
         this.logger.log(`🎯 MÉTODO handleSendMessage EJECUTADO para ${client.id}`);
 
-        const userId = client.user?.sub; // Del JWT
         const chatId = data.chatId || `anonymous-${client.id}`;
-        const message = data.message || data.content || '';
+        const message = (data.message || data.content || '').trim();
 
-        // Validar que el mensaje no esté vacío
-        if (!message || message.trim() === '') {
-            this.logger.warn(`❌ Mensaje vacío recibido de ${client.id}`);
-            client.emit('error', { status: 'error', message: 'El mensaje no puede estar vacío.' });
+        if (!message) {
+            callback({ status: 'error', message: 'El mensaje no puede estar vacío.' });
             return;
         }
 
-        // 0. Enviar ACK inmediato al cliente ANTES de procesar
-        const ackResponse = { status: 'ok' as const, message: 'Mensaje recibido' };
+        // ✅ ACK nativo de Socket.IO
+        callback({ status: 'ok', message: 'Mensaje recibido' });
 
-        this.logger.log(`📤 Enviando ACK inmediato a ${client.id}:`, ackResponse);
+        // Procesar en background
+        this.processMessageInBackground(client, data, client.user?.sub, chatId, message);
+    }
 
-        // Enviar ACK usando client.emit (NestJS no pasa callback automáticamente)
-        client.emit('sendMessage', ackResponse);
-
-        // Procesar en background sin bloquear el ACK
-        this.processMessageInBackground(client, data, userId, chatId, message);
+    private ensureJoined(client: AuthSocket, roomId: string) {
+        // En Socket.IO v4, client.rooms es un Set
+        if (!client.rooms.has(roomId)) {
+            client.join(roomId);
+        }
     }
 
     private async processMessageInBackground(
@@ -122,45 +125,43 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: string
     ) {
         try {
-            // Debug: Log completo del payload recibido
             this.logger.log(`📤 Payload recibido de ${client.id}:`, JSON.stringify(data, null, 2));
             this.logger.log(`📤 Mensaje extraído: "${message}"`);
 
-            // 1. Validar límites si está autenticado
+            // 1) Límites (si autenticado)
             if (userId) {
                 const canSend = await this.usageService.canSendMessage(userId);
                 if (!canSend.allowed) {
-                    client.emit('error', {
+                    // Emitimos solo al usuario actual por su socket id
+                    this.server.to(client.id).emit('error', {
                         message: 'Has alcanzado tu límite de mensajes por día.',
-                        code: 'LIMIT_EXCEEDED'
+                        code: 'LIMIT_EXCEEDED',
+                        chatId,
                     });
                     return;
                 }
             }
 
-            // 2. Unirse a la sala del chat
-            client.join(chatId);
+            // 2) Únete (y garantiza unión) a la sala del chat (incluye emisor)
+            this.ensureJoined(client, chatId);
 
-            // 3. Guardar mensaje del usuario si está autenticado
+            // 3) Guarda mensaje del usuario si aplica
             if (userId) {
                 await this.chatService.saveUserMessage(chatId, userId, message);
             }
 
-            // 4. Emitir "pensando..." inmediatamente
-            client.to(chatId).emit('responseStart', {
+            // 4) Notifica inicio de respuesta (a todos en la sala, incluido emisor)
+            this.server.to(chatId).emit('responseStart', {
                 chatId,
-                content: 'pensando...',
-                timestamp: new Date().toISOString()
+                content: 'Pensando...',
+                timestamp: new Date().toISOString(),
             });
 
-            // 5. Obtener historial de conversación
+            // 5) Historial (si autenticado)
             const history = userId ? await this.chatService.getConversationHistory(chatId) : [];
-            const messages = [
-                ...history,
-                { role: 'user' as const, content: message }
-            ];
+            const messages = [...history, { role: 'user' as const, content: message }];
 
-            // 6. Generar stream de IA
+            // 6) Generar stream IA
             const model = data.model || 'deepseek-r1:7b';
             let fullContent = '';
             let chunkCount = 0;
@@ -168,73 +169,63 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             try {
                 const stream = this.ollamaService.generateStream(messages, model);
 
-                // 7. Emitir evento de inicio de respuesta
-                client.to(chatId).emit('responseStart', {
-                    chatId,
-                    content: 'Pensando...',
-                    timestamp: new Date().toISOString()
-                });
-
-                // 8. Procesar stream y emitir chunks
                 for await (const chunk of stream) {
-                    if (chunk.content) {
+                    if (chunk?.content) {
                         fullContent += chunk.content;
                         chunkCount++;
 
-                        // Emitir chunk al cliente
-                        client.to(chatId).emit('responseChunk', {
+                        // 7) Emitir chunk al chat (incluye emisor)
+                        this.server.to(chatId).emit('responseChunk', {
                             chatId,
                             content: chunk.content,
-                            timestamp: new Date().toISOString()
+                            timestamp: new Date().toISOString(),
                         });
 
-                        // Log cada 25 chunks para debug (reducido)
                         if (chunkCount % 25 === 0) {
-                            this.logger.log(`📥 Chunk ${chunkCount} enviado para ${chatId}: "${chunk.content}"`);
+                            this.logger.log(`📥 Chunk ${chunkCount} enviado para ${chatId}`);
                         }
                     }
                 }
 
                 this.logger.log(`✅ Stream completado para ${chatId} (${chunkCount} chunks)`);
-
             } catch (streamError) {
                 this.logger.error(`❌ Error en stream para ${chatId}:`, streamError);
 
-                // Emitir error al cliente
-                client.to(chatId).emit('error', {
+                // Error del stream → informar a esa sala
+                this.server.to(chatId).emit('error', {
                     message: 'Error generando respuesta. Intenta nuevamente.',
                     code: 'STREAM_ERROR',
-                    chatId
+                    chatId,
                 });
                 return;
             }
 
-            // 9. Guardar mensaje del assistant y finalizar
+            // 8) Persistir mensaje del assistant y uso
             if (userId) {
                 await this.chatService.saveAssistantMessage(chatId, userId, fullContent);
                 await this.usageService.incrementMessageCount(0, userId);
             } else {
-                // Para usuarios anónimos: chatId ya es anonymous-${client.id}
                 await this.chatService.saveAssistantMessage(chatId, null, fullContent);
-                const anonymousId = chatId; // Reusa chatId como ID
+                const anonymousId = chatId;
                 await this.usageService.incrementMessageCount(0, undefined, anonymousId);
             }
 
-            client.to(chatId).emit('responseEnd', {
+            // 9) Final de respuesta (incluye emisor)
+            this.server.to(chatId).emit('responseEnd', {
                 chatId,
                 fullContent,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
 
             this.logger.log(`✅ Respuesta completada para ${chatId} (${chunkCount} chunks)`);
-
         } catch (error) {
             this.logger.error(`❌ Error en sendMessage para ${chatId}:`, error);
 
-            client.emit('error', {
+            // Mensaje de error directo al socket emisor (no a toda la sala)
+            this.server.to(client.id).emit('error', {
                 message: 'Error al procesar mensaje. Intenta nuevamente.',
                 code: 'PROCESSING_ERROR',
-                chatId
+                chatId,
             });
         }
     }
