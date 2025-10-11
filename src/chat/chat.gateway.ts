@@ -66,14 +66,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     @SubscribeMessage('sendMessage')
     async handleSendMessage(
-        @MessageBody() dto: SendMessageDto,
+        @MessageBody() data: any,
         @ConnectedSocket() client: AuthSocket,
     ) {
         const userId = client.user?.sub; // Del JWT
-        const chatId = dto.conversationId || `anonymous-${client.id}`;
+        const chatId = data.chatId || `anonymous-${client.id}`;
+        const message = data.message || data.content || '';
 
         try {
-            this.logger.log(`📤 Mensaje recibido de ${client.id}: ${dto.content.substring(0, 50)}...`);
+            this.logger.log(`📤 Mensaje recibido de ${client.id}: ${message.substring(0, 50)}...`);
 
             // 1. Validar límites si está autenticado
             if (userId) {
@@ -92,7 +93,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             // 3. Guardar mensaje del usuario si está autenticado
             if (userId) {
-                await this.chatService.saveUserMessage(chatId, userId, dto.content);
+                await this.chatService.saveUserMessage(chatId, userId, message);
             }
 
             // 4. Emitir "pensando..." inmediatamente
@@ -106,11 +107,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             const history = userId ? await this.chatService.getConversationHistory(chatId) : [];
             const messages = [
                 ...history,
-                { role: 'user' as const, content: dto.content }
+                { role: 'user' as const, content: message }
             ];
 
             // 6. Generar stream de IA
-            const model = dto.model || 'deepseek-r1:7b';
+            const model = data.model || 'deepseek-r1:7b';
             const stream = this.ollamaService.generateStream(messages, model);
 
             let fullContent = '';
