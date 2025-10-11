@@ -32,6 +32,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     @WebSocketServer() server: Server;
 
+    // chatId -> broadcast?
+    private chatBroadcast = new Map<string, boolean>();
+
     constructor(
         private chatService: ChatService,
         private ollamaService: OllamaService,
@@ -89,7 +92,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     @SubscribeMessage('sendMessage')
     async handleSendMessage(
-        @MessageBody() data: any,
+        @MessageBody()
+        data: {
+            message?: string;
+            content?: string;
+            chatId?: string;
+            model?: string;
+            /** si llega false, responde solo al emisor; default true */
+            broadcast?: boolean;
+        },
         @ConnectedSocket() client: AuthSocket,
         callback: (ack: { status: 'ok' | 'error'; message?: string }) => void,
     ) {
@@ -103,6 +114,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             return;
         }
 
+        // Guardar la preferencia de broadcast para este chat
+        const broadcast = data.broadcast !== false; // default true
+        this.chatBroadcast.set(chatId, broadcast);
+
+        this.logger.log(`📡 Modo broadcast para ${chatId}: ${broadcast ? 'SALA' : 'SOLO_EMISOR'}`);
+
         // ✅ ACK nativo de Socket.IO
         callback({ status: 'ok', message: 'Mensaje recibido' });
 
@@ -114,6 +131,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         // En Socket.IO v4, client.rooms es un Set
         if (!client.rooms.has(roomId)) {
             client.join(roomId);
+        }
+    }
+
+    /** Emite según flag: broadcast=true -> sala; false -> solo emisor */
+    private emitChat(
+        client: AuthSocket,
+        chatId: string,
+        event: string,
+        payload: any,
+    ) {
+        const broadcast = this.chatBroadcast.get(chatId) ?? true; // por defecto a sala
+        if (broadcast) {
+            this.server.to(chatId).emit(event, payload);
+        } else {
+            client.emit(event, payload);
         }
     }
 
@@ -150,8 +182,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 await this.chatService.saveUserMessage(chatId, userId, message);
             }
 
-            // 4) Notifica inicio de respuesta (a todos en la sala, incluido emisor)
-            this.server.to(chatId).emit('responseStart', {
+            // 4) Notifica inicio de respuesta (según flag de broadcast)
+            this.emitChat(client, chatId, 'responseStart', {
                 chatId,
                 content: 'Pensando...',
                 timestamp: new Date().toISOString(),
@@ -174,8 +206,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                         fullContent += chunk.content;
                         chunkCount++;
 
-                        // 7) Emitir chunk al chat (incluye emisor)
-                        this.server.to(chatId).emit('responseChunk', {
+                        // 7) Emitir chunk al chat (según flag de broadcast)
+                        this.emitChat(client, chatId, 'responseChunk', {
                             chatId,
                             content: chunk.content,
                             timestamp: new Date().toISOString(),
@@ -191,8 +223,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             } catch (streamError) {
                 this.logger.error(`❌ Error en stream para ${chatId}:`, streamError);
 
-                // Error del stream → informar a esa sala
-                this.server.to(chatId).emit('error', {
+                // Error del stream → informar según flag de broadcast
+                this.emitChat(client, chatId, 'error', {
                     message: 'Error generando respuesta. Intenta nuevamente.',
                     code: 'STREAM_ERROR',
                     chatId,
@@ -210,8 +242,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 await this.usageService.incrementMessageCount(0, undefined, anonymousId);
             }
 
-            // 9) Final de respuesta (incluye emisor)
-            this.server.to(chatId).emit('responseEnd', {
+            // 9) Final de respuesta (según flag de broadcast)
+            this.emitChat(client, chatId, 'responseEnd', {
                 chatId,
                 fullContent,
                 timestamp: new Date().toISOString(),
