@@ -237,8 +237,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 for await (const chunk of stream) {
                     if (aborted) break;
                     if (chunk?.content) {
-                        fullContent += chunk.content;
-                        buffer += chunk.content;
+                        const piece = this.stripThink(chunk.content); // ✅ Filtrar pensamiento
+                        fullContent += piece;
+                        buffer += piece; // NO hacer trim al piece
                         chunkCount++;
 
                         // flush por tamaño también
@@ -275,7 +276,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 return;
             }
 
-            // 8) Persistir mensaje del assistant y uso
+            // 8) Persistir mensaje del assistant y uso (contenido ya limpio)
             if (userId) {
                 await this.chatService.saveAssistantMessage(chatId, userId, fullContent);
                 await this.usageService.incrementMessageCount(0, userId);
@@ -379,6 +380,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
 
         return cookies;
+    }
+
+    // Helper para limpiar contenido de R1
+    private stripThink(text: string): string {
+        return text.replace(/<think>[\s\S]*?<\/think>/g, '');
     }
 }
 
