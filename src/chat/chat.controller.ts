@@ -27,6 +27,7 @@ import { ClientTypeGuard } from '../common/guards/client-type.guard';
 import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { JwtService } from '@nestjs/jwt';
 import { DeepSeekService } from '../deepseek/deepseek.service';
 
@@ -39,6 +40,7 @@ export class ChatController {
         private readonly geminiService: GeminiService,
         private readonly openaiService: OpenAIService,
         private readonly deepseekService: DeepSeekService,
+        private readonly subscriptionsService: SubscriptionsService,
     ) { }
 
     /**
@@ -398,13 +400,14 @@ export class ChatController {
      * Obtener modelos de IA disponibles
      */
     @Get('models')
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({
-        summary: 'Obtener modelos de IA disponibles',
-        description: 'Lista todos los modelos de IA disponibles para usar en el chat',
+        summary: 'Obtener modelos de IA disponibles según tier de suscripción',
+        description: 'Lista los modelos de IA disponibles filtrados por el tier de suscripción del usuario',
     })
     @ApiResponse({
         status: 200,
-        description: 'Lista de modelos disponibles',
+        description: 'Lista de modelos disponibles filtrados por tier',
         schema: {
             example: {
                 models: [
@@ -413,6 +416,7 @@ export class ChatController {
                         name: 'Ollama Local',
                         provider: 'Local',
                         available: true,
+                        isPremium: false,
                         features: ['text-generation', 'local-processing'],
                         description: 'Modelo local ejecutándose en tu servidor'
                     },
@@ -421,6 +425,7 @@ export class ChatController {
                         name: 'Gemini 2.0 Flash',
                         provider: 'Google',
                         available: true,
+                        isPremium: true,
                         features: ['text-generation', 'multimodal', 'streaming'],
                         description: 'Modelo avanzado de Google con capacidades multimodales'
                     }
@@ -428,13 +433,23 @@ export class ChatController {
             }
         }
     })
-    async getAvailableModels() {
-        const models = [
+    async getAvailableModels(@Request() req: any) {
+        const userId = req.user?.id ?? req.user?.sub ?? null;
+
+        // Obtener tier del usuario
+        let userTier = 'ANONYMOUS';
+        if (userId) {
+            const subscription = await this.subscriptionsService.getOrCreateSubscription(userId);
+            userTier = subscription?.tier || 'REGISTERED';
+        }
+
+        const allModels = [
             {
                 id: 'ollama',
                 name: 'Ollama Local',
                 provider: 'Local',
                 available: this.ollamaService.isAvailable(),
+                isPremium: false,
                 features: ['text-generation', 'local-processing'],
                 description: 'Modelo local ejecutándose en tu servidor',
                 defaultModel: 'deepseek-r1:7b'
@@ -444,6 +459,7 @@ export class ChatController {
                 name: 'Gemini 2.0 Flash',
                 provider: 'Google',
                 available: this.geminiService.isAvailable(),
+                isPremium: true,
                 features: ['text-generation', 'multimodal', 'streaming'],
                 description: 'Modelo avanzado de Google con capacidades multimodales',
                 defaultModel: 'gemini-2.0-flash-exp'
@@ -453,6 +469,7 @@ export class ChatController {
                 name: 'GPT-4o Mini',
                 provider: 'OpenAI',
                 available: this.openaiService.isAvailable(),
+                isPremium: true,
                 features: ['text-generation', 'streaming', 'chat-completions'],
                 description: 'Modelo de OpenAI optimizado para chat y conversaciones',
                 defaultModel: 'gpt-4o-mini'
@@ -462,13 +479,23 @@ export class ChatController {
                 name: 'DeepSeek Chat',
                 provider: 'DeepSeek',
                 available: this.deepseekService.isAvailable(),
+                isPremium: true,
                 features: ['text-generation', 'cost-effective', 'high-performance'],
                 description: 'Modelo de DeepSeek con excelente relación precio-calidad',
                 defaultModel: 'deepseek-chat'
             }
         ];
 
-        return { models };
+        // Filtrar modelos según el tier del usuario
+        const availableModels = allModels.filter(model => {
+            // Modelos locales siempre disponibles
+            if (!model.isPremium) return true;
+
+            // Modelos premium solo para usuarios PREMIUM
+            return userTier === 'PREMIUM';
+        });
+
+        return { models: availableModels };
     }
 
     // ========== ENDPOINTS REST PARA GESTIÓN DE CHATS ==========
