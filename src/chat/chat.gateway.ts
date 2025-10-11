@@ -6,6 +6,7 @@ import {
     OnGatewayConnection,
     OnGatewayDisconnect,
     WsException,
+    WsResponse,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Socket } from 'socket.io';
@@ -76,6 +77,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     async handleSendMessage(
         @MessageBody() data: any,
         @ConnectedSocket() client: AuthSocket,
+        @WsResponse() response: any,
     ) {
         const userId = client.user?.sub; // Del JWT
         const chatId = data.chatId || `anonymous-${client.id}`;
@@ -98,7 +100,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             this.logger.log(`📤 Mensaje extraído: "${message}"`);
 
             // 0. Enviar ACK inmediato al cliente
-            client.emit('sendMessage', { status: 'ok', message: 'Mensaje recibido' });
+            response({ status: 'ok', message: 'Mensaje recibido' });
 
             // 1. Validar límites si está autenticado
             if (userId) {
