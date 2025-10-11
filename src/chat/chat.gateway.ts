@@ -259,7 +259,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
                 if (model === 'gemini') {
                     const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-                    stream = await this.geminiService.generateStreamingResponse(prompt, model);
+                    stream = await this.geminiService.generateStreamingResponse(prompt);
                 } else if (model === 'openai') {
                     const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
                     stream = await this.openaiService.generateStreamingResponse(prompt, model);
@@ -272,7 +272,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                     })();
                 } else {
                     // Por defecto usar Ollama (para modelos locales)
-                    stream = this.ollamaService.generateStream(messages, model);
+                    // Mapear "ollama" al modelo real de Ollama
+                    const ollamaModel = model === 'ollama' ? 'deepseek-r1:7b' : model;
+                    stream = this.ollamaService.generateStream(messages, ollamaModel);
                 }
 
                 // Pegador inteligente para espacios
@@ -293,7 +295,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
                 for await (const chunk of stream) {
                     if (aborted) break;
-                    const piece = chunk?.content ?? '';
+                    // Gemini devuelve strings directamente, otros servicios devuelven objetos con content
+                    const piece = typeof chunk === 'string' ? chunk : (chunk?.content ?? '');
                     if (!piece) continue;
 
                     // Filtrar pensamiento
