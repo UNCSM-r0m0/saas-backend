@@ -189,8 +189,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // 3) Generar stream IA con batching
             const model = data.model || 'deepseek-r1:7b';
 
-            // 4) Guarda mensaje del usuario si aplica
+            // 4) Garantiza que el chat exista antes de guardar mensaje
             if (userId) {
+                // Verificar si el chat existe, si no, crearlo
+                const existingChat = await this.chatService['prisma'].chat.findUnique({
+                    where: { id: chatId }
+                });
+
+                if (!existingChat) {
+                    await this.chatService['prisma'].chat.create({
+                        data: {
+                            id: chatId,
+                            ownerId: userId,
+                            isAnonymous: false,
+                            title: 'New chat',
+                        },
+                    });
+                }
+
                 await this.chatService.saveUserMessageToChat(chatId, userId, message, model);
             }
 

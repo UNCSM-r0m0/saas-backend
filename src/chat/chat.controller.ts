@@ -134,19 +134,11 @@ export class ChatController {
     })
     @ApiBearerAuth('JWT-auth')
     async createChat(@Body() createChatDto: any, @Req() req: any) {
-        // Por ahora retornamos un chat de ejemplo hasta implementar la lógica completa
-        const newChat = {
-            id: crypto.randomUUID(),
-            title: createChatDto.title || 'Nuevo Chat',
-            model: createChatDto.model || 'ollama',
-            messages: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
-
+        const userId = req.user?.id ?? req.user?.sub ?? null;
+        const chat = await this.chatService.createChat(userId, createChatDto?.title);
         return {
             success: true,
-            data: newChat,
+            data: chat,
             message: 'Chat creado exitosamente'
         };
     }
