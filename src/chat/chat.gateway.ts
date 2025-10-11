@@ -13,6 +13,9 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
 import { OllamaService } from '../ollama/ollama.service';
+import { GeminiService } from '../gemini/gemini.service';
+import { OpenAIService } from '../openai/openai.service';
+import { DeepSeekService } from '../deepseek/deepseek.service';
 import { UsageService } from '../usage/usage.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
@@ -42,6 +45,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     constructor(
         private chatService: ChatService,
         private ollamaService: OllamaService,
+        private geminiService: GeminiService,
+        private openaiService: OpenAIService,
+        private deepseekService: DeepSeekService,
         private usageService: UsageService,
         private jwtService: JwtService,
     ) { }
@@ -248,7 +254,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.once('disconnect', onDisconnect);
 
             try {
-                const stream = this.ollamaService.generateStream(messages, model);
+                // Determinar qué servicio usar según el modelo
+                let stream: AsyncIterable<any>;
+
+                if (model === 'gemini') {
+                    const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+                    stream = await this.geminiService.generateStreamingResponse(prompt, model);
+                } else if (model === 'openai') {
+                    const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+                    stream = await this.openaiService.generateStreamingResponse(prompt, model);
+                } else if (model === 'deepseek') {
+                    // DeepSeek no tiene streaming, usar generateResponse y simular stream
+                    const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+                    const response = await this.deepseekService.generateResponse(prompt, model);
+                    stream = (async function* () {
+                        yield { content: response.response };
+                    })();
+                } else {
+                    // Por defecto usar Ollama (para modelos locales)
+                    stream = this.ollamaService.generateStream(messages, model);
+                }
 
                 // Pegador inteligente para espacios
                 const isAlphaNum = (ch: string) => /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(ch);
