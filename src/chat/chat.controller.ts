@@ -6,7 +6,9 @@ import {
     Patch,
     Body,
     Param,
+    Query,
     UseGuards,
+    Request,
     Req,
 } from '@nestjs/common';
 import { Public } from '../common/decorators/public.decorator';
@@ -475,5 +477,61 @@ export class ChatController {
         ];
 
         return { models };
+    }
+
+    // ========== ENDPOINTS REST PARA GESTIÓN DE CHATS ==========
+
+    @Post('sessions')
+    @UseGuards(JwtAuthGuard)
+    async createChatSession(
+        @Request() req: any,
+        @Body() body: { title?: string }
+    ) {
+        const chat = await this.chatService.createChat(req.user.sub, body.title);
+        return { success: true, data: chat };
+    }
+
+    @Get('sessions')
+    @UseGuards(JwtAuthGuard)
+    async listChatSessions(@Request() req: any) {
+        const chats = await this.chatService.listChats(req.user.sub);
+        return { success: true, data: chats };
+    }
+
+    @Patch('sessions/:id')
+    @UseGuards(JwtAuthGuard)
+    async renameChatSession(
+        @Param('id') chatId: string,
+        @Body() body: { title: string },
+        @Request() req: any
+    ) {
+        await this.chatService.renameChat(chatId, body.title, req.user.sub);
+        return { success: true, message: 'Chat renombrado exitosamente' };
+    }
+
+    @Delete('sessions/:id')
+    @UseGuards(JwtAuthGuard)
+    async deleteChatSession(
+        @Param('id') chatId: string,
+        @Request() req: any
+    ) {
+        await this.chatService.deleteChat(chatId, req.user.sub);
+        return { success: true, message: 'Chat eliminado exitosamente' };
+    }
+
+    @Get('sessions/:id/messages')
+    @UseGuards(JwtAuthGuard)
+    async getChatSessionMessages(
+        @Param('id') chatId: string,
+        @Request() req: any,
+        @Query('limit') limit?: string,
+        @Query('cursor') cursor?: string
+    ): Promise<any> {
+        const messages = await this.chatService.getChatHistory(
+            chatId,
+            limit ? parseInt(limit) : 100,
+            cursor
+        );
+        return { success: true, data: messages };
     }
 }

@@ -14,6 +14,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsageService } from '../usage/usage.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { SubscriptionTier, MessageRole } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class ChatService {
@@ -580,6 +581,224 @@ export class ChatService {
         } catch (error) {
             this.logger.error('Error guardando mensaje del assistant:', error);
             throw error;
+        }
+    }
+
+    // ========== NUEVOS MÉTODOS PARA SESIONES DE CHAT ==========
+
+    /**
+     * Crea una nueva sesión de chat
+     */
+    async createChat(ownerId?: string, title?: string): Promise<any> {
+        try {
+            const chat = await this.prisma.chat.create({
+                data: {
+                    ownerId: ownerId ?? null,
+                    title: title ?? 'New chat',
+                    isAnonymous: !ownerId,
+                },
+            });
+
+            this.logger.log(`Chat creado: ${chat.id} para usuario: ${ownerId || 'anónimo'}`);
+            return chat;
+        } catch (error) {
+            this.logger.error('Error creando chat:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Lista chats de un usuario
+     */
+    async listChats(ownerId?: string): Promise<any[]> {
+        try {
+            const chats = await this.prisma.chat.findMany({
+                where: {
+                    OR: [
+                        { ownerId: ownerId ?? null },
+                        ...(ownerId ? [{ participants: { some: { userId: ownerId } } }] : [])
+                    ]
+                },
+                orderBy: { updatedAt: 'desc' },
+                select: {
+                    id: true,
+                    title: true,
+                    updatedAt: true,
+                    createdAt: true,
+                    isAnonymous: true,
+                },
+            });
+
+            return chats;
+        } catch (error) {
+            this.logger.error('Error listando chats:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Renombra un chat
+     */
+    async renameChat(chatId: string, title: string, userId?: string): Promise<void> {
+        try {
+            // Verificar que el usuario tiene acceso al chat
+            const chat = await this.prisma.chat.findFirst({
+                where: {
+                    id: chatId,
+                    OR: [
+                        { ownerId: userId ?? null },
+                        ...(userId ? [{ participants: { some: { userId: userId } } }] : [])
+                    ]
+                }
+            });
+
+            if (!chat) {
+                throw new NotFoundException('Chat no encontrado o sin permisos');
+            }
+
+            await this.prisma.chat.update({
+                where: { id: chatId },
+                data: { title, updatedAt: new Date() },
+            });
+
+            this.logger.log(`Chat renombrado: ${chatId} -> "${title}"`);
+        } catch (error) {
+            this.logger.error('Error renombrando chat:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Elimina un chat
+     */
+    async deleteChat(chatId: string, userId?: string): Promise<void> {
+        try {
+            // Verificar que el usuario tiene acceso al chat
+            const chat = await this.prisma.chat.findFirst({
+                where: {
+                    id: chatId,
+                    OR: [
+                        { ownerId: userId ?? null },
+                        ...(userId ? [{ participants: { some: { userId: userId } } }] : [])
+                    ]
+                }
+            });
+
+            if (!chat) {
+                throw new NotFoundException('Chat no encontrado o sin permisos');
+            }
+
+            await this.prisma.chat.delete({
+                where: { id: chatId },
+            });
+
+            this.logger.log(`Chat eliminado: ${chatId}`);
+        } catch (error) {
+            this.logger.error('Error eliminando chat:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Obtiene el historial de un chat con paginación
+     */
+    async getChatHistory(chatId: string, limit = 100, cursor?: string): Promise<any[]> {
+        try {
+            const messages = await this.prisma.message.findMany({
+                where: { chatId },
+                orderBy: { createdAt: 'asc' },
+                ...(cursor
+                    ? { cursor: { id: cursor }, skip: 1 }
+                    : {}),
+                take: limit,
+                select: {
+                    id: true,
+                    role: true,
+                    content: true,
+                    model: true,
+                    createdAt: true,
+                },
+            });
+
+            return messages;
+        } catch (error) {
+            this.logger.error('Error obteniendo historial del chat:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Guarda mensaje de usuario en chat
+     */
+    async saveUserMessageToChat(chatId: string, userId: string | null, content: string, model?: string): Promise<any> {
+        try {
+            const message = await this.prisma.message.create({
+                data: {
+                    chatId,
+                    userId: userId ?? null,
+                    role: MessageRole.USER,
+                    content,
+                    model,
+                },
+            });
+
+            // Actualizar timestamp del chat
+            await this.prisma.chat.update({
+                where: { id: chatId },
+                data: { updatedAt: new Date() },
+            });
+
+            return message;
+        } catch (error) {
+            this.logger.error('Error guardando mensaje de usuario en chat:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Guarda mensaje de assistant en chat
+     */
+    async saveAssistantMessageToChat(chatId: string, userId: string | null, content: string, model?: string): Promise<any> {
+        try {
+            const message = await this.prisma.message.create({
+                data: {
+                    chatId,
+                    userId: null, // Assistant no tiene userId
+                    role: MessageRole.ASSISTANT,
+                    content,
+                    model,
+                },
+            });
+
+            // Actualizar timestamp del chat
+            await this.prisma.chat.update({
+                where: { id: chatId },
+                data: { updatedAt: new Date() },
+            });
+
+            return message;
+        } catch (error) {
+            this.logger.error('Error guardando mensaje de assistant en chat:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Auto-genera título del chat basado en el primer mensaje
+     */
+    async autoGenerateTitle(chatId: string, firstMessage: string): Promise<void> {
+        try {
+            const title = firstMessage.slice(0, 60) + (firstMessage.length > 60 ? '...' : '');
+
+            await this.prisma.chat.update({
+                where: { id: chatId },
+                data: { title, updatedAt: new Date() },
+            });
+
+            this.logger.log(`Título auto-generado para chat ${chatId}: "${title}"`);
+        } catch (error) {
+            this.logger.error('Error auto-generando título:', error);
+            // No lanzar error, es opcional
         }
     }
 

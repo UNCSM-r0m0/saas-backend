@@ -186,24 +186,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // 2) Únete (y garantiza unión) a la sala del chat (incluye emisor)
             this.ensureJoined(client, chatId);
 
-            // 3) Guarda mensaje del usuario si aplica
+            // 3) Generar stream IA con batching
+            const model = data.model || 'deepseek-r1:7b';
+
+            // 4) Guarda mensaje del usuario si aplica
             if (userId) {
-                await this.chatService.saveUserMessage(chatId, userId, message);
+                await this.chatService.saveUserMessageToChat(chatId, userId, message, model);
             }
 
-            // 4) Notifica inicio de respuesta (según flag de broadcast)
+            // 5) Notifica inicio de respuesta (según flag de broadcast)
             this.emitChat(client, chatId, 'responseStart', {
                 chatId,
                 content: 'Pensando...',
                 timestamp: new Date().toISOString(),
             });
 
-            // 5) Historial (si autenticado)
-            const history = userId ? await this.chatService.getConversationHistory(chatId) : [];
+            // 6) Historial (si autenticado)
+            const history = userId ? await this.chatService.getChatHistory(chatId) : [];
             const messages = [...history, { role: 'user' as const, content: message }];
-
-            // 6) Generar stream IA con batching
-            const model = data.model || 'deepseek-r1:7b';
             let fullContent = '';
             let chunkCount = 0;
 
@@ -301,10 +301,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
             // 8) Persistir mensaje del assistant y uso (contenido ya limpio)
             if (userId) {
-                await this.chatService.saveAssistantMessage(chatId, userId, fullContent);
+                await this.chatService.saveAssistantMessageToChat(chatId, userId, fullContent, model);
                 await this.usageService.incrementMessageCount(0, userId);
             } else {
-                await this.chatService.saveAssistantMessage(chatId, null, fullContent);
+                await this.chatService.saveAssistantMessageToChat(chatId, null, fullContent, model);
                 const anonymousId = chatId;
                 await this.usageService.incrementMessageCount(0, undefined, anonymousId);
             }
@@ -408,6 +408,127 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Helper para limpiar contenido de R1
     private stripThink(text: string): string {
         return text.replace(/<think>[\s\S]*?<\/think>/g, '');
+    }
+
+    // ========== EVENTOS DE SESIÓN DE CHAT ==========
+
+    @SubscribeMessage('newChat')
+    async handleNewChat(
+        @ConnectedSocket() client: AuthSocket,
+        @MessageBody() data: { title?: string }
+    ) {
+        try {
+            const session = await this.chatService.createChat(
+                client.user?.sub ?? null,
+                data?.title
+            );
+
+            // El cliente se une a la sala
+            this.ensureJoined(client, session.id);
+            client.emit('joinedChat', { chatId: session.id });
+
+            this.logger.log(`Nuevo chat creado: ${session.id} para usuario: ${client.user?.sub || 'anónimo'}`);
+            return session;
+        } catch (error) {
+            this.logger.error('Error creando nuevo chat:', error);
+            client.emit('error', {
+                message: 'Error creando nuevo chat',
+                code: 'CHAT_CREATE_ERROR'
+            });
+        }
+    }
+
+    @SubscribeMessage('listChats')
+    async handleListChats(@ConnectedSocket() client: AuthSocket) {
+        try {
+            const sessions = await this.chatService.listChats(client.user?.sub ?? null);
+            client.emit('chatsListed', sessions);
+
+            this.logger.log(`Listando ${sessions.length} chats para usuario: ${client.user?.sub || 'anónimo'}`);
+        } catch (error) {
+            this.logger.error('Error listando chats:', error);
+            client.emit('error', {
+                message: 'Error listando chats',
+                code: 'CHAT_LIST_ERROR'
+            });
+        }
+    }
+
+    @SubscribeMessage('renameChat')
+    async handleRenameChat(
+        @MessageBody() data: { chatId: string; title: string },
+        @ConnectedSocket() client: AuthSocket,
+    ) {
+        try {
+            await this.chatService.renameChat(
+                data.chatId,
+                data.title,
+                client.user?.sub ?? null
+            );
+
+            client.emit('chatRenamed', {
+                chatId: data.chatId,
+                title: data.title
+            });
+
+            this.logger.log(`Chat renombrado: ${data.chatId} -> "${data.title}"`);
+        } catch (error) {
+            this.logger.error('Error renombrando chat:', error);
+            client.emit('error', {
+                message: 'Error renombrando chat',
+                code: 'CHAT_RENAME_ERROR'
+            });
+        }
+    }
+
+    @SubscribeMessage('deleteChat')
+    async handleDeleteChat(
+        @MessageBody() data: { chatId: string },
+        @ConnectedSocket() client: AuthSocket,
+    ) {
+        try {
+            await this.chatService.deleteChat(
+                data.chatId,
+                client.user?.sub ?? null
+            );
+
+            client.emit('chatDeleted', { chatId: data.chatId });
+
+            this.logger.log(`Chat eliminado: ${data.chatId}`);
+        } catch (error) {
+            this.logger.error('Error eliminando chat:', error);
+            client.emit('error', {
+                message: 'Error eliminando chat',
+                code: 'CHAT_DELETE_ERROR'
+            });
+        }
+    }
+
+    @SubscribeMessage('getHistory')
+    async handleGetHistory(
+        @MessageBody() data: { chatId: string; limit?: number; cursor?: string },
+        @ConnectedSocket() client: AuthSocket,
+    ) {
+        try {
+            const history = await this.chatService.getChatHistory(
+                data.chatId,
+                data.limit || 100,
+                data.cursor
+            );
+
+            client.emit('history', {
+                chatId: data.chatId,
+                messages: history
+            });
+
+            this.logger.log(`Historial enviado para chat: ${data.chatId} (${history.length} mensajes)`);
+        } catch (error) {
+            this.logger.error('Error obteniendo historial:', error);
+            client.emit('error', {
+                message: 'Error obteniendo historial',
+                code: 'HISTORY_ERROR'
+            });
+        }
     }
 }
 

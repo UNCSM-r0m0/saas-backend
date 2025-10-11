@@ -42,6 +42,11 @@ enum MessageRole {
   SYSTEM
 }
 
+enum ChatRole {
+  OWNER
+  MEMBER
+}
+
 // Models
 model User {
   id            String       @id @default(uuid())
@@ -63,7 +68,9 @@ model User {
   // Relations
   subscription  Subscription?
   conversations Conversation[]
+  chats         Chat[]            @relation("UserChats") // como owner opcional
   messages      Message[]
+  participants  ChatParticipant[]
   usageRecords  UsageRecord[]
 
   // Timestamps
@@ -136,17 +143,58 @@ model Conversation {
   @@map("conversations")
 }
 
+// Nuevo modelo Chat para sesiones mejoradas
+model Chat {
+  id          String  @id @default(uuid())
+  title       String?
+  isAnonymous Boolean @default(false)
+
+  // Owner opcional (para hilos anónimos también)
+  ownerId String?
+  owner   User?   @relation("UserChats", fields: [ownerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  messages     Message[]
+  participants ChatParticipant[]
+
+  @@index([ownerId])
+  @@index([createdAt])
+  @@map("chats")
+}
+
+model ChatParticipant {
+  chatId   String
+  userId   String
+  role     ChatRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([chatId, userId])
+  @@index([userId])
+  @@map("chat_participants")
+}
+
 // Mensajes del chat
 model Message {
-  id             String       @id @default(uuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  userId         String?
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  role           MessageRole
-  content        String       @db.Text
-  model          String       @default("deepseek-r1:7b")
-  tokensUsed     Int          @default(0)
+  id             String        @id @default(uuid())
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // Nuevo: soporte para Chat también
+  chatId String?
+  chat   Chat?   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  role       MessageRole
+  content    String      @db.Text
+  model      String      @default("deepseek-r1:7b")
+  tokensUsed Int         @default(0)
 
   // Attachments (solo premium)
   attachments String[] // URLs de archivos adjuntos
@@ -155,6 +203,7 @@ model Message {
   createdAt DateTime @default(now())
 
   @@index([conversationId])
+  @@index([chatId])
   @@index([userId])
   @@index([createdAt])
   @@map("messages")
