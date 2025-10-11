@@ -55,12 +55,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 headers: client.handshake?.headers
             });
 
-            // Debug fino con onAny (sin interferir con callbacks)
+            // Debug fino (sin interferir con callbacks)
             client.onAny((eventName, ...args) => {
                 this.logger.log(`🎯 EVENTO ${eventName} de ${client.id}`, {
                     argsLen: args.length,
                     hasAck: typeof args[args.length - 1] === 'function'
                 });
+            });
+
+            // Log de desconexión con razón (Nest no la pasa en handleDisconnect)
+            client.on('disconnect', (reason) => {
+                this.logger.log(`❌ Cliente desconectado (reason): ${client.id} (${reason})`);
             });
 
             this.logger.log(`🔗 Namespace usado: ${client.nsp?.name}`); // Debe ser '/chat'
@@ -88,8 +93,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
     }
 
-    handleDisconnect(client: Socket, reason: string) {
-        this.logger.log(`❌ Cliente desconectado: ${client.id} (${reason})`);
+    handleDisconnect(client: Socket) {
+        this.logger.log(`❌ Cliente desconectado: ${client.id}`);
     }
 
     @SubscribeMessage('sendMessage')
@@ -110,11 +115,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const message = (data.message ?? data.content ?? '').trim();
 
         if (!message) {
-            if (typeof callback === 'function') {
-                callback({ status: 'error', message: 'El mensaje no puede estar vacío.' });
-            } else {
-                client.emit('error', { message: 'El mensaje no puede estar vacío.', code: 'BAD_REQUEST', chatId });
-            }
+            client.emit('error', { message: 'El mensaje no puede estar vacío.', code: 'BAD_REQUEST', chatId });
             return;
         }
 
@@ -124,7 +125,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         this.logger.log(`📡 Broadcast(${chatId}) = ${broadcast ? 'SALA' : 'SOLO_EMISOR'}`);
 
-        // ✅ ACK inmediato
+        // ✅ ACK inmediato (el cliente ya no depende de esto para la UX)
         if (typeof callback === 'function') {
             callback({ status: 'ok', message: 'Mensaje recibido' });
         } else {
