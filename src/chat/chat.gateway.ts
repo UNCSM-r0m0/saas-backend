@@ -89,6 +89,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             this.logger.log(`📤 Payload recibido de ${client.id}:`, JSON.stringify(data, null, 2));
             this.logger.log(`📤 Mensaje extraído: "${message}"`);
 
+            // 0. Enviar ACK inmediato al cliente
+            client.emit('sendMessage', { status: 'ok', message: 'Mensaje recibido' });
+
             // 1. Validar límites si está autenticado
             if (userId) {
                 const canSend = await this.usageService.canSendMessage(userId);
