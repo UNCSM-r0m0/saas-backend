@@ -27,7 +27,6 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import type { Response } from 'express';
 import { MobileGoogleVerifyDto } from './dto/mobile-google-verify.dto';
-import axios from 'axios';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -193,7 +192,11 @@ export class AuthController {
 
         // Validar token con Google
         const tokenInfoUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`;
-        const { data: info } = await axios.get(tokenInfoUrl, { timeout: 8000 });
+        const resp = await fetch(tokenInfoUrl, { method: 'GET' });
+        if (!resp.ok) {
+            return { statusCode: 401, message: 'Token inválido' };
+        }
+        const info: any = await resp.json();
 
         // info: { email, given_name, family_name, picture, aud, email_verified, ... }
         if (!info?.email) {
