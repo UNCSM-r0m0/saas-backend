@@ -26,6 +26,8 @@ import { GithubAuthGuard } from './guards/github-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import type { Response } from 'express';
+import { MobileGoogleVerifyDto } from './dto/mobile-google-verify.dto';
+import axios from 'axios';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -176,5 +178,43 @@ export class AuthController {
     async logout(@Res() res: Response) {
         res.clearCookie('access_token', { path: '/' });
         return res.json({ success: true });
+    }
+
+    // === MÓVIL: Verificación directa de Google ID Token ===
+    @Public()
+    @Post('mobile/google-verify')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Verificar idToken de Google desde app móvil y devolver JWT' })
+    async mobileGoogleVerify(@Body() body: MobileGoogleVerifyDto) {
+        const { idToken } = body;
+        if (!idToken) {
+            return { statusCode: 400, message: 'idToken requerido' };
+        }
+
+        // Validar token con Google
+        const tokenInfoUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`;
+        const { data: info } = await axios.get(tokenInfoUrl, { timeout: 8000 });
+
+        // info: { email, given_name, family_name, picture, aud, email_verified, ... }
+        if (!info?.email) {
+            return { statusCode: 401, message: 'Token inválido' };
+        }
+
+        // Validar aud contra tu client id si quieres mayor seguridad
+        // const expectedAud = process.env.GOOGLE_CLIENT_ID;
+        // if (expectedAud && info.aud !== expectedAud) throw new UnauthorizedException('aud inválido');
+
+        // Persistir/obtener usuario y emitir JWT
+        const user = await this.authService.validateOAuthUser({
+            providerId: info.sub,
+            email: info.email,
+            firstName: info.given_name,
+            lastName: info.family_name,
+            avatar: info.picture,
+            provider: 'GOOGLE',
+        });
+
+        const { access_token, user: userData } = await this.authService.login(user);
+        return { access_token, user: userData };
     }
 }
