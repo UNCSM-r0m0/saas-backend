@@ -227,6 +227,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             const history = userId ? await this.chatService.getChatHistory(chatId) : [];
             const messages = [...history, { role: 'user' as const, content: message }];
             let fullContent = '';
+            let fullThought = '';
             let chunkCount = 0;
 
             // === Buffer de envío ===
@@ -299,22 +300,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                     const piece = typeof chunk === 'string' ? chunk : (chunk?.content ?? '');
                     if (!piece) continue;
 
-                    // Filtrar pensamiento
-                    const cleanPiece = this.stripThink(piece);
-                    if (!cleanPiece) continue;
+                    // Procesar contenido R1 (separar pensamiento de respuesta)
+                    const processed = this.processR1Content(piece);
 
-                    // pega con espacio solo si hace falta
-                    const glue = needsSpaceBetween(fullContent, cleanPiece) ? ' ' : '';
+                    // Acumular pensamiento completo
+                    if (processed.thought) {
+                        fullThought += processed.thought + ' ';
+                    }
 
-                    fullContent += glue + cleanPiece;
-                    buffer += glue + cleanPiece;
-                    chunkCount++;
+                    // Solo enviar la respuesta limpia al cliente
+                    if (processed.cleanResponse) {
+                        // pega con espacio solo si hace falta
+                        const glue = needsSpaceBetween(fullContent, processed.cleanResponse) ? ' ' : '';
 
-                    // flush por tamaño también
-                    if (buffer.length >= 800) flush();
+                        fullContent += glue + processed.cleanResponse;
+                        buffer += glue + processed.cleanResponse;
+                        chunkCount++;
 
-                    if (chunkCount % 50 === 0) {
-                        this.logger.log(`📥 Chunk ${chunkCount} (batched) para ${chatId}`);
+                        // flush por tamaño también
+                        if (buffer.length >= 800) flush();
+
+                        if (chunkCount % 50 === 0) {
+                            this.logger.log(`📥 Chunk ${chunkCount} (batched) para ${chatId}`);
+                        }
                     }
                 }
 
@@ -344,11 +352,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             }
 
             // 8) Persistir mensaje del assistant y uso (contenido ya limpio)
+            // Guardar pensamiento y respuesta por separado si hay pensamiento
+            const messageToSave = fullThought.trim()
+                ? `**Pensamiento:** ${fullThought.trim()}\n\n**Respuesta:** ${fullContent}`
+                : fullContent;
+
             if (userId) {
-                await this.chatService.saveAssistantMessageToChat(chatId, userId, fullContent, model);
+                await this.chatService.saveAssistantMessageToChat(chatId, userId, messageToSave, model);
                 await this.usageService.incrementMessageCount(0, userId);
             } else {
-                await this.chatService.saveAssistantMessageToChat(chatId, null, fullContent, model);
+                await this.chatService.saveAssistantMessageToChat(chatId, null, messageToSave, model);
                 const anonymousId = chatId;
                 await this.usageService.incrementMessageCount(0, undefined, anonymousId);
             }
@@ -449,9 +462,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return cookies;
     }
 
-    // Helper para limpiar contenido de R1
-    private stripThink(text: string): string {
-        return text.replace(/<think>[\s\S]*?<\/think>/g, '');
+    // Helper para procesar contenido de R1 (separar pensamiento de respuesta)
+    private processR1Content(text: string): { thought: string; response: string; cleanResponse: string } {
+        const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/);
+        const thought = thinkMatch ? thinkMatch[1].trim() : '';
+        const response = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+        // Limpiar espacios extra y formatear mejor
+        const cleanResponse = response
+            .replace(/\s+/g, ' ') // Reemplazar múltiples espacios con uno solo
+            .replace(/\*\*([^*]+)\*\*/g, '**$1**') // Mantener negritas
+            .replace(/\\\[/g, '[') // Convertir \[ a [
+            .replace(/\\\]/g, ']') // Convertir \] a ]
+            .replace(/\\boxed\{([^}]+)\}/g, '**$1**') // Convertir \boxed{} a negritas
+            .trim();
+
+        return { thought, response, cleanResponse };
     }
 
     // ========== EVENTOS DE SESIÓN DE CHAT ==========
