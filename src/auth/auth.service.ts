@@ -56,9 +56,12 @@ export class AuthService {
     }
 
     async validateOAuthUser(profile: any): Promise<any> {
+        console.log('🔍 [AuthService] validateOAuthUser: Profile recibido:', profile);
         let user = await this.usersService.findByEmail(profile.email);
+        console.log('🔍 [AuthService] validateOAuthUser: Usuario existente:', user ? `${user.email} (ID: ${user.id})` : 'No encontrado');
 
         if (!user) {
+            console.log('🔍 [AuthService] validateOAuthUser: Creando nuevo usuario...');
             // Crear nuevo usuario desde OAuth
             user = await this.usersService.create({
                 email: profile.email,
@@ -70,9 +73,12 @@ export class AuthService {
                 emailVerified: true,
                 role: UserRole.USER,
             });
+            console.log('🔍 [AuthService] validateOAuthUser: ✅ Usuario creado:', `${user.email} (ID: ${user.id})`);
         } else {
+            console.log('🔍 [AuthService] validateOAuthUser: Actualizando último login...');
             // Actualizar último login
             await this.usersService.updateLastLogin(user.id);
+            console.log('🔍 [AuthService] validateOAuthUser: ✅ Último login actualizado');
         }
 
         return user;

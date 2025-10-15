@@ -14,12 +14,15 @@ export class UsersService {
   constructor(private prisma: PrismaService) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
+    console.log('🔍 [UsersService] create: DTO recibido:', createUserDto);
+
     // Verificar si el usuario ya existe
     const existingUser = await this.prisma.user.findUnique({
       where: { email: createUserDto.email },
     });
 
     if (existingUser) {
+      console.log('🔍 [UsersService] create: ❌ Usuario ya existe:', existingUser.email);
       throw new ConflictException('Email already exists');
     }
 
@@ -29,6 +32,7 @@ export class UsersService {
       hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     }
 
+    console.log('🔍 [UsersService] create: Creando usuario en base de datos...');
     const user = await this.prisma.user.create({
       data: {
         ...createUserDto,
@@ -36,6 +40,7 @@ export class UsersService {
       },
     });
 
+    console.log('🔍 [UsersService] create: ✅ Usuario creado:', `${user.email} (ID: ${user.id})`);
     return new User(user);
   }
 
