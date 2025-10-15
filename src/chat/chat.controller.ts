@@ -300,7 +300,7 @@ export class ChatController {
         }
 
         try {
-            const conversation = await this.chatService.getConversation(id, userId);
+            const conversation = await this.chatService.getChat(id, userId);
 
             // Convertir a formato esperado por el frontend
             const chatData = {
@@ -415,10 +415,10 @@ export class ChatController {
     @Get('conversations')
     @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Listar conversaciones del usuario' })
-    @ApiResponse({ status: 200, description: 'Lista de conversaciones' })
+    @ApiOperation({ summary: 'Listar chats del usuario' })
+    @ApiResponse({ status: 200, description: 'Lista de chats' })
     async listConversations(@Req() req: any) {
-        return this.chatService.listConversations(req.user.id);
+        return this.chatService.getUserChats(req.user.id);
     }
 
     /**
@@ -431,7 +431,7 @@ export class ChatController {
     @ApiResponse({ status: 200, description: 'Conversación completa' })
     @ApiResponse({ status: 404, description: 'Conversación no encontrada' })
     async getConversation(@Param('id') id: string, @Req() req: any) {
-        return this.chatService.getConversation(id, req.user.id);
+        return this.chatService.getChat(id, req.user.id);
     }
 
     /**
@@ -455,7 +455,7 @@ export class ChatController {
         @Body('title') title: string,
         @Req() req: any,
     ) {
-        return this.chatService.updateConversationTitle(id, req.user.id, title);
+        return this.chatService.updateChatTitle(id, req.user.id, title);
     }
 
     /**
@@ -467,7 +467,7 @@ export class ChatController {
     @ApiOperation({ summary: 'Eliminar conversación' })
     @ApiResponse({ status: 200, description: 'Conversación eliminada' })
     async deleteConversation(@Param('id') id: string, @Req() req: any) {
-        return this.chatService.deleteConversation(id, req.user.id);
+        return this.chatService.deleteChat(id, req.user.id);
     }
 
     /**
@@ -547,11 +547,7 @@ export class ChatController {
         @Query('limit') limit?: string,
         @Query('cursor') cursor?: string
     ): Promise<any> {
-        const messages = await this.chatService.getChatHistory(
-            chatId,
-            limit ? parseInt(limit) : 100,
-            cursor
-        );
+        const messages = await this.chatService.getChatHistory(chatId);
         return { success: true, data: messages };
     }
 }

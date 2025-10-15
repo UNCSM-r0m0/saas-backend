@@ -554,11 +554,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         @ConnectedSocket() client: AuthSocket,
     ) {
         try {
-            const history = await this.chatService.getChatHistory(
-                data.chatId,
-                data.limit || 100,
-                data.cursor
-            );
+            const history = await this.chatService.getChatHistory(data.chatId);
 
             client.emit('history', {
                 chatId: data.chatId,
