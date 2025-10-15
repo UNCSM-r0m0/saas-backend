@@ -24,9 +24,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     handleRequest(err: any, user: any, info: any) {
+        console.log('🔍 JwtAuthGuard.handleRequest:', { err, user, info });
         if (err || !user) {
+            console.log('🔍 JwtAuthGuard.handleRequest: ❌ Error o usuario nulo');
             throw new UnauthorizedException('Token inválido o expirado');
         }
+        console.log('🔍 JwtAuthGuard.handleRequest: ✅ Usuario válido');
         return user;
     }
 }
