@@ -26,7 +26,7 @@ enum AuthProvider {
 enum SubscriptionTier {
   FREE // Anónimos: 3 mensajes
   REGISTERED // Registrados: 50 mensajes/día
-  PREMIUM // Premium: 1000 mensajes/día + imágenes
+  PREMIUM // Premium: 100 mensajes/día + imágenes
 }
 
 enum SubscriptionStatus {
@@ -40,11 +40,6 @@ enum MessageRole {
   USER
   ASSISTANT
   SYSTEM
-}
-
-enum ChatRole {
-  OWNER
-  MEMBER
 }
 
 // Models
@@ -66,12 +61,10 @@ model User {
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Relations
-  subscription  Subscription?
-  conversations Conversation[]
-  chats         Chat[]            @relation("UserChats") // como owner opcional
-  messages      Message[]
-  participants  ChatParticipant[]
-  usageRecords  UsageRecord[]
+  subscription Subscription?
+  chats        Chat[]        @relation("UserChats") // como owner opcional
+  messages     Message[]
+  usageRecords UsageRecord[]
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -123,30 +116,10 @@ model Subscription {
   @@map("subscriptions")
 }
 
-// Conversaciones (solo para usuarios registrados)
-model Conversation {
-  id     String  @id @default(uuid())
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  title String @default("Nueva conversación")
-
-  // Relations
-  messages Message[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@index([createdAt])
-  @@map("conversations")
-}
-
 // Nuevo modelo Chat para sesiones mejoradas
 model Chat {
   id          String  @id @default(uuid())
-  title       String?
+  title       String  @default("Nueva conversación")
   isAnonymous Boolean @default(false)
 
   // Owner opcional (para hilos anónimos también)
@@ -157,37 +130,18 @@ model Chat {
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  messages     Message[]
-  participants ChatParticipant[]
+  messages Message[]
 
   @@index([ownerId])
   @@index([createdAt])
   @@map("chats")
 }
 
-model ChatParticipant {
-  chatId   String
-  userId   String
-  role     ChatRole @default(MEMBER)
-  joinedAt DateTime @default(now())
-
-  chat Chat @relation(fields: [chatId], references: [id])
-  user User @relation(fields: [userId], references: [id])
-
-  @@id([chatId, userId])
-  @@index([userId])
-  @@map("chat_participants")
-}
-
 // Mensajes del chat
 model Message {
-  id             String        @id @default(uuid())
-  conversationId String?
-  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  // Nuevo: soporte para Chat también
-  chatId String?
-  chat   Chat?   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  chatId String
+  chat   Chat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   userId     String?
   user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -202,7 +156,6 @@ model Message {
   // Timestamps
   createdAt DateTime @default(now())
 
-  @@index([conversationId])
   @@index([chatId])
   @@index([userId])
   @@index([createdAt])

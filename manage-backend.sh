@@ -28,6 +28,8 @@ usage() {
   echo -e "  ${YELLOW}restart${NC}   : Reinicia la aplicación '$APP_NAME'"
   echo -e "  ${YELLOW}reload${NC}    : Recarga la aplicación (sin downtime)"
   echo -e "  ${YELLOW}status${NC}    : Muestra el estado de la aplicación"
+  echo -e "  ${YELLOW}studio${NC}    : Abre Prisma Studio para ver la base de datos"
+  echo -e "  ${RED}recrear${NC}   : 🚨 ELIMINA TODO y recrea la base de datos desde cero"
   echo -e "  ${YELLOW}logs${NC}      : Muestra los logs en tiempo real"
   echo -e "  ${YELLOW}update${NC}    : Actualiza código, reconstruye y reinicia"
   echo -e "  ${YELLOW}delete${NC}    : Elimina la aplicación de PM2"
@@ -185,6 +187,40 @@ case "$1" in
     fi
     
     echo -e "${GREEN}✅ Limpieza completada${NC}"
+    ;;
+    
+  studio)
+    echo -e "${BLUE}📊 Abriendo Prisma Studio...${NC}"
+    npx prisma studio --schema prisma/schema.prisma
+    ;;
+    
+  recrear)
+    echo -e "${RED}🚨 RECREANDO BASE DE DATOS DESDE CERO...${NC}"
+    echo -e "${YELLOW}⚠️  Esto eliminará TODOS los datos existentes${NC}"
+    echo ""
+    
+    # Detener la aplicación si está corriendo
+    echo -e "${YELLOW}🛑 Deteniendo aplicación...${NC}"
+    pm2 stop "$APP_NAME" 2>/dev/null || true
+    
+    # Detener Prisma Studio si está corriendo
+    echo -e "${YELLOW}🛑 Deteniendo Prisma Studio...${NC}"
+    pkill -f "prisma studio" 2>/dev/null || true
+    
+    # Eliminar completamente la base de datos y recrearla
+    echo -e "${RED}🗑️  Eliminando base de datos...${NC}"
+    PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="true" npx prisma db push --force-reset --schema prisma/schema.prisma
+    
+    # Ejecutar el seed
+    echo -e "${GREEN}🌱 Ejecutando seed...${NC}"
+    npm run prisma:seed
+    
+    # Generar cliente de Prisma
+    echo -e "${GREEN}🔧 Generando cliente de Prisma...${NC}"
+    npx prisma generate --schema prisma/schema.prisma
+    
+    echo -e "${GREEN}✅ Base de datos recreada exitosamente${NC}"
+    echo -e "${BLUE}📊 Puedes verificar con: $0 studio${NC}"
     ;;
     
   *)
