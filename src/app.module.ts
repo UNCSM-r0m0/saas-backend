@@ -53,6 +53,11 @@ import { ModelsModule } from './models/models.module';
         ALLOWED_FILE_TYPES: Joi.string().default('image/jpeg,image/png,image/gif,image/webp'),
         ADMIN_EMAIL: Joi.string().default('admin@saas.com'),
         ADMIN_PASSWORD: Joi.string().default('Admin123!'),
+        // Chat concurrency controls (optional)
+        CHAT_MAX_CONCURRENCY: Joi.number().default(2),
+        CHAT_MAX_STREAMS_PER_USER: Joi.number().default(1),
+        CHAT_QUEUE_TIMEOUT_MS: Joi.number().default(8000),
+        CHAT_QUEUE_MAX_WAITERS: Joi.number().default(50),
       }),
     }),
     PrismaModule,

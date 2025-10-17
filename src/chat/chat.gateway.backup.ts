@@ -44,14 +44,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private chatBroadcast = new Map<string, boolean>();
     // Active stream cancel handlers by messageId
     private activeStreams = new Map<string, () => void>();
-    // --- Concurrency control (global and per-user) ---
-    private globalActive = 0;
-    private userActive = new Map<string, number>();
-    private waitQueue: Array<{ userKey: string; resolve: (release: () => void) => void; created: number }> = [];
-    private readonly MAX_GLOBAL = Number(process.env.CHAT_MAX_CONCURRENCY ?? 2);
-    private readonly MAX_PER_USER = Number(process.env.CHAT_MAX_STREAMS_PER_USER ?? 1);
-    private readonly QUEUE_TIMEOUT_MS = Number(process.env.CHAT_QUEUE_TIMEOUT_MS ?? 8000);
-    private readonly QUEUE_MAX_WAITERS = Number(process.env.CHAT_QUEUE_MAX_WAITERS ?? 50);
 
     constructor(
         private chatService: ChatService,
@@ -61,7 +53,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         private deepseekService: DeepSeekService,
         private usageService: UsageService,
         private jwtService: JwtService,
-        private wsEmitter: import('../common/ws/ws-emitter.service').WsEmitterService,
     ) { }
 
     async handleConnection(client: AuthSocket) {
@@ -96,7 +87,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 try {
                     const payload = this.jwtService.verify(token);
                     client.user = payload;
-                    try { client.join(`user:${payload.sub}`); } catch {}
                     this.logger.log(`✅ Cliente autenticado conectado: ${client.id} (User: ${payload.sub})`);
                 } catch (error) {
                     this.logger.warn(`❌ Token inválido para cliente: ${client.id}`, error.message);
@@ -161,51 +151,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
     }
 
-    // ===== Concurrency helpers =====
-    private canStart(userKey: string) {
-        const ua = this.userActive.get(userKey) || 0;
-        return this.globalActive < this.MAX_GLOBAL && ua < this.MAX_PER_USER;
-    }
-
-    private tryDrainQueue() {
-        for (let i = 0; i < this.waitQueue.length; i++) {
-            const t = this.waitQueue[i];
-            if (this.canStart(t.userKey)) {
-                this.waitQueue.splice(i, 1);
-                this.globalActive++;
-                this.userActive.set(t.userKey, (this.userActive.get(t.userKey) || 0) + 1);
-                t.resolve(() => this.releaseSlot(t.userKey));
-                break;
-            }
-        }
-    }
-
-    private releaseSlot(userKey: string) {
-        this.globalActive = Math.max(0, this.globalActive - 1);
-        this.userActive.set(userKey, Math.max(0, (this.userActive.get(userKey) || 1) - 1));
-        this.tryDrainQueue();
-    }
-
-    private async acquireSlot(userKey: string): Promise<() => void> {
-        if (this.canStart(userKey)) {
-            this.globalActive++;
-            this.userActive.set(userKey, (this.userActive.get(userKey) || 0) + 1);
-            return () => this.releaseSlot(userKey);
-        }
-        if (this.waitQueue.length >= this.QUEUE_MAX_WAITERS) {
-            throw new WsException('SERVER_BUSY');
-        }
-        return await new Promise<() => void>((resolve, reject) => {
-            const ticket = { userKey, resolve, created: Date.now() };
-            this.waitQueue.push(ticket);
-            setTimeout(() => {
-                const idx = this.waitQueue.indexOf(ticket);
-                if (idx >= 0) this.waitQueue.splice(idx, 1);
-                reject(new WsException('SERVER_BUSY_TIMEOUT'));
-            }, this.QUEUE_TIMEOUT_MS);
-        });
-    }
-
     /** Emite según flag: broadcast=true -> sala; false -> solo emisor */
     private emitChat(
         client: AuthSocket,
@@ -249,20 +194,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // 2) Únete a la sala del chat (incluye emisor)
             this.ensureJoined(client, chatId);
 
-            // 3) Generar stream IA (con control de concurrencia)
+            // 3) Generar stream IA
             const model = data.model || 'deepseek-r1:7b';
-            const userKey = (userId ?? `anon:${client.id}`);
-            let release: (() => void) | null = null;
-            try {
-                release = await this.acquireSlot(userKey);
-            } catch {
-                this.server.to(client.id).emit('error', {
-                    message: 'Servidor ocupado, intenta en unos segundos.',
-                    code: 'SERVER_BUSY',
-                    chatId,
-                });
-                return;
-            }
 
             // 4) Garantiza que el chat exista antes de guardar mensaje
             if (userId) {
@@ -433,7 +366,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 flush(true);
                 clearInterval(flushTimer);
                 client.off('disconnect', onDisconnect);
-                if (release) release();
                 this.activeStreams.delete(messageId);
 
                 if (aborted) {
@@ -445,7 +377,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             } catch (streamError) {
                 clearInterval(flushTimer);
                 client.off('disconnect', onDisconnect);
-                if (release) release();
                 this.activeStreams.delete(messageId);
                 this.logger.error(`Error in stream for ${chatId}:`, streamError);
 
@@ -483,7 +414,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             });
 
             this.logger.log(`Respuesta completada para ${chatId} (${chunkCount} chunks)`);
-            if (release) release();
         } catch (error) {
             this.logger.error(`Error en sendMessage para ${chatId}:`, error);
 
@@ -712,4 +642,5 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
     }
 }
+
 

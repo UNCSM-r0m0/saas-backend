@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
+import { WsEmitterService } from '../common/ws/ws-emitter.service';
 
 @Injectable()
 export class StripeService {
@@ -11,6 +12,7 @@ export class StripeService {
     constructor(
         private readonly configService: ConfigService,
         private readonly prisma: PrismaService,
+        private readonly wsEmitter: WsEmitterService,
     ) {
         const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
         if (!secretKey || secretKey === '') {
@@ -149,6 +151,7 @@ export class StripeService {
         );
 
         await this.createOrUpdateSubscription(userId, subscription);
+        this.wsEmitter.emitToUser(userId, 'subscriptionUpdated', await this.getUserSubscription(userId));
         this.logger.log(`Subscription created for user ${userId}`);
     }
 
@@ -163,6 +166,7 @@ export class StripeService {
         }
 
         await this.createOrUpdateSubscription(userId, subscription);
+        this.wsEmitter.emitToUser(userId, 'subscriptionUpdated', await this.getUserSubscription(userId));
         this.logger.log(`Subscription updated for user ${userId}`);
     }
 
@@ -183,6 +187,7 @@ export class StripeService {
                 stripeCurrentPeriodEnd: new Date(),
             },
         });
+        this.wsEmitter.emitToUser(userId, 'subscriptionUpdated', await this.getUserSubscription(userId));
 
         this.logger.log(`Subscription canceled for user ${userId}`);
     }
