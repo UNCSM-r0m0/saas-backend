@@ -5,6 +5,7 @@ import {
     ConnectedSocket,
     OnGatewayConnection,
     OnGatewayDisconnect,
+    OnGatewayInit,
     WsException,
     WebSocketServer,
 } from '@nestjs/websockets';
@@ -19,6 +20,7 @@ import { OpenAIService } from '../openai/openai.service';
 import { DeepSeekService } from '../deepseek/deepseek.service';
 import { UsageService } from '../usage/usage.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { WsEmitterService } from '../common/ws/ws-emitter.service';
 
 interface AuthSocket extends Socket {
     user?: any; // Del JWT
@@ -35,7 +37,7 @@ interface AuthSocket extends Socket {
     pingInterval: 25000,       // default ok
     perMessageDeflate: false,  // MUY importante con proxys
 })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
     private readonly logger = new Logger(ChatGateway.name);
 
     @WebSocketServer() server: Server;
@@ -61,8 +63,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         private deepseekService: DeepSeekService,
         private usageService: UsageService,
         private jwtService: JwtService,
-        private wsEmitter: import('../common/ws/ws-emitter.service').WsEmitterService,
+        private wsEmitter: WsEmitterService,
     ) { }
+
+    afterInit(server: Server) {
+        // Disponibiliza el server para emisores globales (Stripe -> WS)
+        try { this.wsEmitter.setServer(server); } catch {}
+    }
 
     async handleConnection(client: AuthSocket) {
         try {

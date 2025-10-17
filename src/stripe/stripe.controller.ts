@@ -6,7 +6,9 @@ import {
     Req,
     UseGuards,
     Headers,
+    Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import type { RawBodyRequest } from '@nestjs/common';
 import {
     ApiTags,
@@ -131,8 +133,18 @@ export class StripeController {
             },
         },
     })
-    async getUserSubscription(@Req() req: any) {
-        return this.stripeService.getUserSubscription(req.user.id);
+    async getUserSubscription(@Req() req: any, @Res() res: Response, @Headers('if-none-match') ifNoneMatch?: string) {
+        const sub = await this.stripeService.getUserSubscription(req.user.id);
+        const etagBase = sub ? `${sub.tier}-${sub.status}-${(sub as any).updatedAt ?? ''}` : 'none';
+        const etag = 'W/"' + Buffer.from(etagBase).toString('base64') + '"';
+
+        if (ifNoneMatch && ifNoneMatch === etag) {
+            return res.status(304).end();
+        }
+
+        res.setHeader('Cache-Control', 'private, max-age=60');
+        res.setHeader('ETag', etag);
+        return res.status(200).json(sub);
     }
 
     /**

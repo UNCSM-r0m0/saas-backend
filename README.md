@@ -349,3 +349,5 @@ Probar endpoints:
 ## ollama run deepseek-coder
 
 ## npm run prisma:studio
+
+## dbeaver &
