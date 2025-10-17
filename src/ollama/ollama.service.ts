@@ -128,8 +128,10 @@ export class OllamaService {
                             const content = parsed.message?.content || '';
                             if (content) {
                                 totalChunks++;
-                                // this.logger.debug(`📥 Chunk ${totalChunks}: "${content}"`); // Comentado para reducir logs
-                                yield { content: this.stripThinkTags(content) };
+                                // No limpiamos <think> aquí para preservar formato por chunk.
+                                // El Gateway elimina <think> de forma incremental y mantiene saltos/código.
+                                // this.logger.debug(`📥 Chunk ${totalChunks}: "${content}"`);
+                                yield { content };
                             }
                         } catch (e) {
                             this.logger.warn(`📥 Error parseando línea: "${line}"`);

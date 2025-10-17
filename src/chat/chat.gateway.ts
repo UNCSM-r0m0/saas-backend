@@ -9,6 +9,7 @@ import {
     WebSocketServer,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
@@ -41,6 +42,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // chatId -> broadcast?
     private chatBroadcast = new Map<string, boolean>();
+    // Active stream cancel handlers by messageId
+    private activeStreams = new Map<string, () => void>();
 
     constructor(
         private chatService: ChatService,
@@ -172,14 +175,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: string
     ) {
         try {
-            this.logger.log(`📤 Payload recibido de ${client.id}:`, JSON.stringify(data, null, 2));
-            this.logger.log(`📤 Mensaje extraído: "${message}"`);
+            this.logger.log(`STREAM input from ${client.id}`, JSON.stringify(data, null, 2));
+            this.logger.log(`STREAM extracted message: "${message}"`);
 
             // 1) Límites (si autenticado)
             if (userId) {
                 const canSend = await this.usageService.canSendMessage(userId);
                 if (!canSend.allowed) {
-                    // Emitimos solo al usuario actual por su socket id
                     this.server.to(client.id).emit('error', {
                         message: 'Has alcanzado tu límite de mensajes por día.',
                         code: 'LIMIT_EXCEEDED',
@@ -189,19 +191,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 }
             }
 
-            // 2) Únete (y garantiza unión) a la sala del chat (incluye emisor)
+            // 2) Únete a la sala del chat (incluye emisor)
             this.ensureJoined(client, chatId);
 
-            // 3) Generar stream IA con batching
+            // 3) Generar stream IA
             const model = data.model || 'deepseek-r1:7b';
 
             // 4) Garantiza que el chat exista antes de guardar mensaje
             if (userId) {
-                // Verificar si el chat existe, si no, crearlo
                 const existingChat = await this.chatService['prisma'].chat.findUnique({
                     where: { id: chatId }
                 });
-
                 if (!existingChat) {
                     await this.chatService['prisma'].chat.create({
                         data: {
@@ -212,50 +212,86 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                         },
                     });
                 }
-
                 await this.chatService.saveUserMessageToChat(chatId, userId, message, model);
             }
 
-            // 5) Notifica inicio de respuesta (según flag de broadcast)
+            // 5) Inicio de respuesta
+            const messageId = randomUUID ? randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
             this.emitChat(client, chatId, 'responseStart', {
                 chatId,
+                messageId,
                 content: 'Pensando...',
                 timestamp: new Date().toISOString(),
             });
 
-            // 6) Historial (si autenticado)
+            // 6) Historial
             const history = userId ? await this.chatService.getChatHistory(chatId) : [];
             const messages = [...history, { role: 'user' as const, content: message }];
+
             let fullContent = '';
             let fullThought = '';
             let chunkCount = 0;
+            let seq = 0;
 
-            // === Buffer de envío ===
+            // Buffer y estado
             let buffer = '';
             let aborted = false;
+            let openCodeBlock = false;
+            let openCodeLang: string | null = null;
+            let openMathBlock = false; // para $$ ... $$
 
-            const flush = () => {
+            const updateAssemblerState = (text: string) => {
+                let i = 0;
+                while (i < text.length) {
+                    if (text.startsWith('```', i)) {
+                        if (!openCodeBlock) {
+                            const nl = text.indexOf('\n', i + 3);
+                            const fenceLine = text.slice(i + 3, nl === -1 ? text.length : nl).trim();
+                            openCodeLang = fenceLine.split(/\s+/)[0] || null;
+                        } else {
+                            openCodeLang = null;
+                        }
+                        openCodeBlock = !openCodeBlock;
+                        i += 3;
+                        continue;
+                    }
+                    if (!openCodeBlock && text.startsWith('$$', i)) {
+                        openMathBlock = !openMathBlock;
+                        i += 2;
+                        continue;
+                    }
+                    i++;
+                }
+            };
+
+            const flush = (force = false) => {
                 if (!buffer || aborted) return;
-                this.emitChat(client, chatId, 'responseChunk', {
+                const inBlock = openCodeBlock || openMathBlock;
+                if (inBlock && !force && buffer.length < 400) return;
+                const payload: any = {
                     chatId,
+                    messageId,
+                    seq: ++seq,
+                    partial: true,
                     content: buffer,
+                    contentType: openCodeBlock ? 'code' : 'markdown',
+                    lang: openCodeBlock ? (openCodeLang || undefined) : undefined,
                     timestamp: new Date().toISOString(),
-                });
+                };
+                this.emitChat(client, chatId, 'responseChunk', payload);
                 buffer = '';
             };
 
-            // flush cada 60ms
-            const flushTimer = setInterval(flush, 60);
+            const flushTimer = setInterval(() => flush(false), 60);
 
-            // abortar si el cliente se desconecta (no sigas consumiendo CPU)
             const onDisconnect = (reason: string) => {
                 aborted = true;
-                this.logger.warn(`⚠️ Cliente desconectado durante stream: ${client.id} (${reason})`);
+                this.logger.warn(`Client disconnected during stream: ${client.id} (${reason})`);
             };
             client.once('disconnect', onDisconnect);
+            this.activeStreams.set(messageId, () => { aborted = true; });
 
             try {
-                // Determinar qué servicio usar según el modelo
                 let stream: AsyncIterable<any>;
 
                 if (model === 'gemini') {
@@ -265,94 +301,95 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                     const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
                     stream = await this.openaiService.generateStreamingResponse(prompt, model);
                 } else if (model === 'deepseek') {
-                    // DeepSeek no tiene streaming, usar generateResponse y simular stream
                     const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
                     const response = await this.deepseekService.generateResponse(prompt, model);
                     stream = (async function* () {
                         yield { content: response.response };
                     })();
                 } else {
-                    // Por defecto usar Ollama (para modelos locales)
-                    // Mapear "ollama" al modelo real de Ollama
                     const ollamaModel = model === 'ollama' ? 'deepseek-r1:7b' : model;
                     stream = this.ollamaService.generateStream(messages, ollamaModel);
                 }
 
-                // Pegador inteligente para espacios
-                const isAlphaNum = (ch: string) => /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(ch);
-                const needsSpaceBetween = (a: string, b: string) => {
-                    if (!a || !b) return false;
-                    const last = a[a.length - 1];
-                    const first = b[0];
-                    // si el chunk ya trae espacio/nueva línea, no hacemos nada
-                    if (first === ' ' || first === '\n' || first === '\t') return false;
-                    // no ponemos espacio antes de puntuación
-                    if (/[.,;:!?)]/.test(first)) return false;
-                    // si el anterior termina con apertura o salto, tampoco
-                    if (/[(\n\t ]/.test(last)) return false;
-                    // letra/número pegado a letra/número → sí espacio
-                    return isAlphaNum(last) && isAlphaNum(first);
+                // Procesador R1 incremental
+                const makeR1Processor = () => {
+                    let inThink = false;
+                    return (chunk: string) => {
+                        let i = 0;
+                        let thought = '';
+                        let resp = '';
+                        const startTag = '<think>';
+                        const endTag = '</think>';
+                        while (i < chunk.length) {
+                            if (!inThink) {
+                                const j = chunk.indexOf(startTag, i);
+                                if (j === -1) { resp += chunk.slice(i); break; }
+                                resp += chunk.slice(i, j);
+                                i = j + startTag.length;
+                                inThink = true;
+                            } else {
+                                const k = chunk.indexOf(endTag, i);
+                                if (k === -1) { thought += chunk.slice(i); break; }
+                                thought += chunk.slice(i, k);
+                                i = k + endTag.length;
+                                inThink = false;
+                            }
+                        }
+                        return { thought, response: resp };
+                    };
                 };
+                const processR1 = makeR1Processor();
 
                 for await (const chunk of stream) {
                     if (aborted) break;
-                    // Gemini devuelve strings directamente, otros servicios devuelven objetos con content
                     const piece = typeof chunk === 'string' ? chunk : (chunk?.content ?? '');
                     if (!piece) continue;
 
-                    // Procesar contenido R1 (separar pensamiento de respuesta)
-                    const processed = this.processR1Content(piece);
+                    const processed = processR1(piece);
 
-                    // Acumular pensamiento completo
                     if (processed.thought) {
-                        fullThought += processed.thought + ' ';
+                        fullThought += processed.thought;
                     }
 
-                    // Solo enviar la respuesta limpia al cliente
-                    if (processed.cleanResponse) {
-                        // pega con espacio solo si hace falta
-                        const glue = needsSpaceBetween(fullContent, processed.cleanResponse) ? ' ' : '';
-
-                        fullContent += glue + processed.cleanResponse;
-                        buffer += glue + processed.cleanResponse;
+                    if (processed.response) {
+                        buffer += processed.response;
+                        fullContent += processed.response;
+                        updateAssemblerState(processed.response);
                         chunkCount++;
-
-                        // flush por tamaño también
-                        if (buffer.length >= 800) flush();
-
+                        if (buffer.length >= 800) flush(true);
                         if (chunkCount % 50 === 0) {
-                            this.logger.log(`📥 Chunk ${chunkCount} (batched) para ${chatId}`);
+                            this.logger.log(`Chunk ${chunkCount} (batched) for ${chatId}`);
                         }
                     }
                 }
 
-                // flush final
-                flush();
+                flush(true);
                 clearInterval(flushTimer);
                 client.off('disconnect', onDisconnect);
+                this.activeStreams.delete(messageId);
 
                 if (aborted) {
-                    this.logger.warn(`⚠️ Stream abortado (cliente desconectado) ${chatId} tras ${chunkCount} chunks`);
-                    return; // opcional: persistir parcial o no
+                    this.logger.warn(`Stream aborted (client disconnected) ${chatId} after ${chunkCount} chunks`);
+                    return;
                 }
 
-                this.logger.log(`✅ Stream completado para ${chatId} (${chunkCount} chunks batched)`);
+                this.logger.log(`Stream completed for ${chatId} (${chunkCount} chunks batched)`);
             } catch (streamError) {
                 clearInterval(flushTimer);
                 client.off('disconnect', onDisconnect);
-                this.logger.error(`❌ Error en stream para ${chatId}:`, streamError);
+                this.activeStreams.delete(messageId);
+                this.logger.error(`Error in stream for ${chatId}:`, streamError);
 
-                // Error del stream → informar según flag de broadcast
                 this.emitChat(client, chatId, 'error', {
                     message: 'Error generando respuesta. Intenta nuevamente.',
                     code: 'STREAM_ERROR',
                     chatId,
+                    messageId,
                 });
                 return;
             }
 
-            // 8) Persistir mensaje del assistant y uso (contenido ya limpio)
-            // Guardar pensamiento y respuesta por separado si hay pensamiento
+            // 8) Persistir mensaje del assistant
             const messageToSave = fullThought.trim()
                 ? `**Pensamiento:** ${fullThought.trim()}\n\n**Respuesta:** ${fullContent}`
                 : fullContent;
@@ -366,23 +403,40 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 await this.usageService.incrementMessageCount(0, undefined, anonymousId);
             }
 
-            // 9) Final de respuesta (según flag de broadcast)
+            // 9) Final de respuesta
             this.emitChat(client, chatId, 'responseEnd', {
                 chatId,
+                messageId,
                 fullContent,
+                totalChunks: chunkCount,
+                finished: true,
                 timestamp: new Date().toISOString(),
             });
 
-            this.logger.log(`✅ Respuesta completada para ${chatId} (${chunkCount} chunks)`);
+            this.logger.log(`Respuesta completada para ${chatId} (${chunkCount} chunks)`);
         } catch (error) {
-            this.logger.error(`❌ Error en sendMessage para ${chatId}:`, error);
+            this.logger.error(`Error en sendMessage para ${chatId}:`, error);
 
-            // Mensaje de error directo al socket emisor (no a toda la sala)
             this.server.to(client.id).emit('error', {
                 message: 'Error al procesar mensaje. Intenta nuevamente.',
                 code: 'PROCESSING_ERROR',
                 chatId,
             });
+        }
+    }
+
+    @SubscribeMessage('stopGeneration')
+    async handleStopGeneration(
+        @MessageBody() data: { chatId: string; messageId: string },
+        @ConnectedSocket() client: AuthSocket,
+    ) {
+        const { messageId } = data || ({} as any);
+        if (!messageId) return;
+        const stop = this.activeStreams.get(messageId);
+        if (stop) {
+            stop();
+            this.activeStreams.delete(messageId);
+            this.logger.log(`Stream cancelled by ${client.id} (messageId=${messageId})`);
         }
     }
 
@@ -462,21 +516,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return cookies;
     }
 
-    // Helper para procesar contenido de R1 (separar pensamiento de respuesta)
+    // Helper para R1 (versión simple; preserva formato)
     private processR1Content(text: string): { thought: string; response: string; cleanResponse: string } {
         const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/);
-        const thought = thinkMatch ? thinkMatch[1].trim() : '';
-        const response = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-
-        // Limpiar espacios extra y formatear mejor
-        const cleanResponse = response
-            .replace(/\s+/g, ' ') // Reemplazar múltiples espacios con uno solo
-            .replace(/\*\*([^*]+)\*\*/g, '**$1**') // Mantener negritas
-            .replace(/\\\[/g, '[') // Convertir \[ a [
-            .replace(/\\\]/g, ']') // Convertir \] a ]
-            .replace(/\\boxed\{([^}]+)\}/g, '**$1**') // Convertir \boxed{} a negritas
-            .trim();
-
+        const thought = thinkMatch ? (thinkMatch[1] ?? '') : '';
+        const response = text.replace(/<think>[\s\S]*?<\/think>/g, '');
+        const cleanResponse = response; // no colapsar espacios ni saltos de línea
         return { thought, response, cleanResponse };
     }
 

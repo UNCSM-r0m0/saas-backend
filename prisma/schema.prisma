@@ -42,6 +42,14 @@ enum MessageRole {
   SYSTEM
 }
 
+// Estado de mensajes (para streams y telemetría)
+enum MessageStatus {
+  DRAFT
+  STREAMING
+  DONE
+  ERROR
+}
+
 // Models
 model User {
   id            String       @id @default(uuid())
@@ -149,6 +157,11 @@ model Message {
   content    String      @db.Text
   model      String      @default("deepseek-r1:7b")
   tokensUsed Int         @default(0)
+
+  // Streaming / metadata
+  status    MessageStatus @default(DONE)
+  streamId  String?
+  meta      Json?
 
   // Attachments (solo premium)
   attachments String[] // URLs de archivos adjuntos

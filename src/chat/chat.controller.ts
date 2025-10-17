@@ -30,6 +30,7 @@ import { OpenAIService } from '../openai/openai.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { JwtService } from '@nestjs/jwt';
 import { DeepSeekService } from '../deepseek/deepseek.service';
+import { getUserIdFromReq, getUserIdFromAuthHeader } from '../common/utils/auth.util';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -75,7 +76,7 @@ export class ChatController {
     })
     @ApiBearerAuth('JWT-auth')
     async getChats(@Req() req: any) {
-        const userId = req.user?.id;
+        const userId = getUserIdFromReq(req);
 
         if (!userId) {
             return {
@@ -136,7 +137,7 @@ export class ChatController {
     })
     @ApiBearerAuth('JWT-auth')
     async createChat(@Body() createChatDto: any, @Req() req: any) {
-        const userId = req.user?.id ?? req.user?.sub ?? null;
+        const userId = getUserIdFromReq(req);
         const chat = await this.chatService.createChat(userId, createChatDto?.title);
         return {
             success: true,
@@ -183,7 +184,7 @@ export class ChatController {
         }
     })
     async getAvailableModels(@Request() req: any) {
-        const userId = req.user?.id ?? req.user?.sub ?? null;
+        const userId = getUserIdFromReq(req);
 
         // Obtener tier del usuario
         let userTier = 'ANONYMOUS';
@@ -290,7 +291,7 @@ export class ChatController {
     @ApiBearerAuth('JWT-auth')
     async getChat(@Param('id') id: string, @Req() req: any) {
         console.log('🔍 getChat: Iniciando con id:', id);
-        const userId = req.user?.id;
+        const userId = getUserIdFromReq(req);
 
         if (!userId) {
             return {
@@ -352,29 +353,11 @@ export class ChatController {
     @ApiBody({ type: SendMessageDto })
     async sendMessage(@Body() dto: SendMessageDto, @Req() req: any) {
         // Obtener userId si está autenticado (opcional)
-        let userId = req.user?.id;
-
-        // Blindaje extra: si viene un Bearer en el header pero no pasó por guard, decodificar JWT y tomar el sub
+        let userId = getUserIdFromReq(req);
         if (!userId) {
-            const auth = req.headers?.authorization as string | undefined;
-            if (auth && auth.startsWith('Bearer ')) {
-                const token = auth.slice(7);
-                try {
-                    const payloadPart = token.split('.')[1];
-                    if (payloadPart) {
-                        const payloadJson = Buffer.from(payloadPart, 'base64').toString('utf8');
-                        const payload = JSON.parse(payloadJson);
-                        if (payload && typeof payload.sub === 'string') {
-                            userId = payload.sub;
-                        }
-                    }
-                } catch (_) {
-                    // Ignorar si es inválido; se tratará como anónimo
-                }
-            }
+            userId = getUserIdFromAuthHeader(req.headers?.authorization);
         }
-
-        return this.chatService.sendMessage(dto, userId);
+        return this.chatService.sendMessage(dto, userId || undefined);
     }
 
     /**
@@ -391,7 +374,8 @@ export class ChatController {
         @Body() dto: SendMessageDto,
         @Req() req: any,
     ) {
-        return this.chatService.sendMessage(dto, req.user.id);
+        const userId = getUserIdFromReq(req)!;
+        return this.chatService.sendMessage(dto, userId);
     }
 
     /**
@@ -406,7 +390,8 @@ export class ChatController {
         @Body() body: { content: string },
         @Req() req: any,
     ) {
-        return this.chatService.updateFirstMessageAndTitle(conversationId, req.user.id, body.content);
+        const userId = getUserIdFromReq(req)!;
+        return this.chatService.updateFirstMessageAndTitle(conversationId, userId, body.content);
     }
 
     /**
@@ -418,7 +403,8 @@ export class ChatController {
     @ApiOperation({ summary: 'Listar chats del usuario' })
     @ApiResponse({ status: 200, description: 'Lista de chats' })
     async listConversations(@Req() req: any) {
-        return this.chatService.getUserChats(req.user.id);
+        const userId = getUserIdFromReq(req)!;
+        return this.chatService.getUserChats(userId);
     }
 
     /**
@@ -431,7 +417,8 @@ export class ChatController {
     @ApiResponse({ status: 200, description: 'Conversación completa' })
     @ApiResponse({ status: 404, description: 'Conversación no encontrada' })
     async getConversation(@Param('id') id: string, @Req() req: any) {
-        return this.chatService.getChat(id, req.user.id);
+        const userId = getUserIdFromReq(req)!;
+        return this.chatService.getChat(id, userId);
     }
 
     /**
@@ -455,7 +442,8 @@ export class ChatController {
         @Body('title') title: string,
         @Req() req: any,
     ) {
-        return this.chatService.updateChatTitle(id, req.user.id, title);
+        const userId = getUserIdFromReq(req)!;
+        return this.chatService.updateChatTitle(id, userId, title);
     }
 
     /**
@@ -467,7 +455,8 @@ export class ChatController {
     @ApiOperation({ summary: 'Eliminar conversación' })
     @ApiResponse({ status: 200, description: 'Conversación eliminada' })
     async deleteConversation(@Param('id') id: string, @Req() req: any) {
-        return this.chatService.deleteChat(id, req.user.id);
+        const userId = getUserIdFromReq(req)!;
+        return this.chatService.deleteChat(id, userId);
     }
 
     /**
@@ -496,7 +485,8 @@ export class ChatController {
         },
     })
     async getUserStats(@Req() req: any) {
-        return this.chatService.getUserUsageStats(req.user.id);
+        const userId = getUserIdFromReq(req)!;
+        return this.chatService.getUserUsageStats(userId);
     }
 
     // ========== ENDPOINTS REST PARA GESTIÓN DE CHATS ==========
@@ -507,14 +497,16 @@ export class ChatController {
         @Request() req: any,
         @Body() body: { title?: string }
     ) {
-        const chat = await this.chatService.createChat(req.user.sub, body.title);
+        const userId = getUserIdFromReq(req)!;
+        const chat = await this.chatService.createChat(userId, body.title);
         return { success: true, data: chat };
     }
 
     @Get('sessions')
     @UseGuards(JwtAuthGuard)
     async listChatSessions(@Request() req: any) {
-        const chats = await this.chatService.listChats(req.user.sub);
+        const userId = getUserIdFromReq(req)!;
+        const chats = await this.chatService.listChats(userId);
         return { success: true, data: chats };
     }
 
@@ -525,7 +517,8 @@ export class ChatController {
         @Body() body: { title: string },
         @Request() req: any
     ) {
-        await this.chatService.renameChat(chatId, body.title, req.user.sub);
+        const userId = getUserIdFromReq(req)!;
+        await this.chatService.renameChat(chatId, body.title, userId);
         return { success: true, message: 'Chat renombrado exitosamente' };
     }
 
@@ -535,7 +528,8 @@ export class ChatController {
         @Param('id') chatId: string,
         @Request() req: any
     ) {
-        await this.chatService.deleteChat(chatId, req.user.sub);
+        const userId = getUserIdFromReq(req)!;
+        await this.chatService.deleteChat(chatId, userId);
         return { success: true, message: 'Chat eliminado exitosamente' };
     }
 
