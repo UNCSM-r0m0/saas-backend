@@ -162,13 +162,22 @@ export class ChatController {
             example: {
                 models: [
                     {
-                        id: 'ollama',
-                        name: 'Ollama Local',
-                        provider: 'Local',
+                        id: 'ollama-deepseek-r1:7b',
+                        name: 'DeepSeek R1 7B',
+                        provider: 'Ollama Local',
                         available: true,
                         isPremium: false,
-                        features: ['text-generation', 'local-processing'],
-                        description: 'Modelo local ejecutándose en tu servidor'
+                        features: ['text-generation', 'local-processing', 'reasoning'],
+                        description: 'Modelo de razonamiento avanzado para análisis complejos'
+                    },
+                    {
+                        id: 'ollama-qwen2.5-coder:7b',
+                        name: 'Qwen2.5 Coder 7B',
+                        provider: 'Ollama Local',
+                        available: true,
+                        isPremium: false,
+                        features: ['text-generation', 'code-generation', 'programming'],
+                        description: 'Modelo especializado en programación y generación de código'
                     },
                     {
                         id: 'gemini',
@@ -193,17 +202,56 @@ export class ChatController {
             userTier = subscription?.tier || 'REGISTERED';
         }
 
-        const allModels = [
-            {
-                id: 'ollama',
-                name: 'Ollama Local',
-                provider: 'Local',
-                available: this.ollamaService.isAvailable(),
-                isPremium: false,
+        // Obtener modelos de Ollama dinámicamente
+        const ollamaModels = await this.ollamaService.listModels();
+        const ollamaAvailable = this.ollamaService.isAvailable();
+
+        // Crear modelos de Ollama dinámicamente
+        const ollamaModelConfigs = ollamaModels.map(modelName => {
+            // Configuración específica para cada modelo
+            const modelConfigs: Record<string, any> = {
+                'deepseek-r1:7b': {
+                    name: 'DeepSeek R1 7B',
+                    features: ['text-generation', 'local-processing', 'reasoning'],
+                    description: 'Modelo de razonamiento avanzado para análisis complejos'
+                },
+                'qwen2.5-coder:7b': {
+                    name: 'Qwen2.5 Coder 7B',
+                    features: ['text-generation', 'code-generation', 'programming'],
+                    description: 'Modelo especializado en programación y generación de código'
+                },
+                'llama3.2:3b': {
+                    name: 'Llama 3.2 3B',
+                    features: ['text-generation', 'local-processing', 'fast'],
+                    description: 'Modelo rápido y eficiente para respuestas generales'
+                },
+                'llama3.2:7b': {
+                    name: 'Llama 3.2 7B',
+                    features: ['text-generation', 'local-processing', 'balanced'],
+                    description: 'Modelo equilibrado para tareas generales'
+                }
+            };
+
+            const config = modelConfigs[modelName] || {
+                name: modelName.replace(/[-:]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                 features: ['text-generation', 'local-processing'],
-                description: 'Modelo local ejecutándose en tu servidor',
-                defaultModel: 'deepseek-r1:7b'
-            },
+                description: `Modelo local ${modelName}`
+            };
+
+            return {
+                id: `ollama-${modelName}`,
+                name: config.name,
+                provider: 'Ollama Local',
+                available: ollamaAvailable,
+                isPremium: false,
+                features: config.features,
+                description: config.description,
+                defaultModel: modelName
+            };
+        });
+
+        const allModels = [
+            ...ollamaModelConfigs,
             {
                 id: 'gemini',
                 name: 'Gemini 2.0 Flash',

@@ -197,6 +197,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             // 3) Generar stream IA
             const model = data.model || 'deepseek-r1:7b';
 
+            // Determinar el modelo específico de Ollama si viene con prefijo 'ollama-'
+            let ollamaModel = model;
+            if (model.startsWith('ollama-')) {
+                ollamaModel = model.replace('ollama-', '');
+            } else if (model === 'ollama') {
+                ollamaModel = 'deepseek-r1:7b'; // Modelo por defecto
+            }
+
             // 4) Garantiza que el chat exista antes de guardar mensaje
             if (userId) {
                 const existingChat = await this.chatService['prisma'].chat.findUnique({
@@ -307,7 +315,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
                         yield { content: response.response };
                     })();
                 } else {
-                    const ollamaModel = model === 'ollama' ? 'deepseek-r1:7b' : model;
+                    // Usar el modelo específico de Ollama determinado arriba
                     stream = this.ollamaService.generateStream(messages, ollamaModel);
                 }
 

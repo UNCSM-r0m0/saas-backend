@@ -351,3 +351,5 @@ Probar endpoints:
 ## npm run prisma:studio
 
 ## dbeaver &
+
+## ollama run qwen2.5-coder:7b
