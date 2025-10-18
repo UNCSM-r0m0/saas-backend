@@ -33,7 +33,7 @@ interface AuthSocket extends Socket {
     },
     namespace: '/chat',
     transports: ['websocket'],
-    pingTimeout: 60000,        // antes 20000
+    pingTimeout: 120000,       // 2 minutos para modelos lentos
     pingInterval: 25000,       // default ok
     perMessageDeflate: false,  // MUY importante con proxys
 })
