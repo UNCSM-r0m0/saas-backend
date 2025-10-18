@@ -31,8 +31,8 @@ interface AuthSocket extends Socket {
     },
     namespace: '/chat',
     transports: ['websocket'],
-    pingTimeout: 200000,        // antes 20000
-    pingInterval: 25000,       // default ok
+    pingTimeout: 45000,        // 45 segundos (más estricto)
+    pingInterval: 20000,      // 20 segundos (más frecuente)     // default ok
     perMessageDeflate: false,  // MUY importante con proxys
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
