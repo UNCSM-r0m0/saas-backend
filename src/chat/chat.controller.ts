@@ -150,7 +150,7 @@ export class ChatController {
      * Obtener modelos de IA disponibles
      */
     @Get('models')
-    @UseGuards(JwtAuthGuard)
+    @Public() // Permitir acceso público para usuarios anónimos
     @ApiOperation({
         summary: 'Obtener modelos de IA disponibles según tier de suscripción',
         description: 'Lista los modelos de IA disponibles filtrados por el tier de suscripción del usuario',
