@@ -68,7 +68,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
     afterInit(server: Server) {
         // Disponibiliza el server para emisores globales (Stripe -> WS)
-        try { this.wsEmitter.setServer(server); } catch {}
+        try { this.wsEmitter.setServer(server); } catch { }
     }
 
     async handleConnection(client: AuthSocket) {
@@ -103,7 +103,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                 try {
                     const payload = this.jwtService.verify(token);
                     client.user = payload;
-                    try { client.join(`user:${payload.sub}`); } catch {}
+                    try { client.join(`user:${payload.sub}`); } catch { }
                     this.logger.log(`✅ Cliente autenticado conectado: ${client.id} (User: ${payload.sub})`);
                 } catch (error) {
                     this.logger.warn(`❌ Token inválido para cliente: ${client.id}`, error.message);
@@ -381,7 +381,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                         yield { content: response.response };
                     })();
                 } else {
-                    const ollamaModel = model === 'ollama' ? 'deepseek-r1:7b' : model;
+                    // Determinar el modelo específico de Ollama si viene con prefijo 'ollama-'
+                    let ollamaModel = model;
+                    if (model.startsWith('ollama-')) {
+                        ollamaModel = model.replace('ollama-', '');
+                    } else if (model === 'ollama') {
+                        ollamaModel = 'deepseek-r1:7b'; // Modelo por defecto
+                    }
                     stream = this.ollamaService.generateStream(messages, ollamaModel);
                 }
 
