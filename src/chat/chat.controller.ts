@@ -11,6 +11,7 @@ import {
     Request,
     Req,
     Res,
+    Header,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
@@ -111,7 +112,7 @@ export class ChatController {
     /**
      * Obtener un chat especÃ­fico con sus mensajes
      */
-    @Get(':id')
+    @Get(':id([0-9a-fA-F\-]{36})')
     @UseGuards(JwtAuthGuard)
     @ApiOperation({
         summary: 'Obtener un chat especÃ­fico',
@@ -455,6 +456,10 @@ export class ChatController {
 
     @Get('sessions')
     @UseGuards(JwtAuthGuard)
+    @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+    @Header('Pragma', 'no-cache')
+    @Header('Expires', '0')
+    @Header('Vary', 'Cookie, Authorization, Origin')
     async listChatSessions(@Request() req: any) {
         const userId = getUserIdFromReq(req)!;
         console.log(`🔍 [GET /chat/sessions] Iniciando para userId: ${userId}`);
@@ -502,6 +507,10 @@ export class ChatController {
 
     @Get('sessions/:id/messages')
     @UseGuards(JwtAuthGuard)
+    @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+    @Header('Pragma', 'no-cache')
+    @Header('Expires', '0')
+    @Header('Vary', 'Cookie, Authorization, Origin')
     async getChatSessionMessages(
         @Param('id') chatId: string,
         @Request() req: any,

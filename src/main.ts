@@ -21,6 +21,10 @@ async function bootstrap() {
   // Prefijo global /api
   app.setGlobalPrefix('api');
 
+  // Desactivar ETag para evitar 304 en endpoints autenticados
+  // (el cache se maneja a nivel de cliente/proxy cuando conviene)
+  app.getHttpAdapter().getInstance().set('etag', false);
+
   // CORS - configurado en archivo dedicado
   app.enableCors(corsOptions);
 
