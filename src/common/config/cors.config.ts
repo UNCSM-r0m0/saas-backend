@@ -15,7 +15,8 @@ export const corsOptions: CorsOptions = {
     ],
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type, Authorization, Accept, ngrok-skip-browser-warning, X-Requested-With',
+    // Permitir cabeceras comunes de control de caché y otras usadas por el cliente
+    allowedHeaders: 'Content-Type, Authorization, Accept, ngrok-skip-browser-warning, X-Requested-With, Cache-Control, Pragma, Expires',
 };
 
 
