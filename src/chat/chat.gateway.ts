@@ -224,11 +224,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         if (broadcast) {
             const room = this.server.sockets.adapter.rooms.get(chatId);
             const clientCount = room ? room.size : 0;
-            this.logger.debug(`📡 Emitiendo ${event} a sala ${chatId} (${clientCount} clientes)`);
+            this.logger.log(`📡 [EMIT] ${event} → sala ${chatId} (${clientCount} clientes)`);
             this.server.to(chatId).emit(event, payload);
         } else {
             // Siempre garantizamos que el emisor lo reciba
-            this.logger.debug(`📡 Emitiendo ${event} directamente a cliente ${client.id}`);
+            this.logger.log(`📡 [EMIT] ${event} → cliente ${client.id}`);
             client.emit(event, payload);
         }
     }
@@ -301,6 +301,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                 content: 'Pensando...',
                 timestamp: new Date().toISOString(),
             });
+            this.logger.log(`📤 [START] Enviando responseStart a sala ${chatId}`);
 
             // 6) Historial
             const history = userId ? await this.chatService.getChatHistory(chatId) : [];
@@ -357,7 +358,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                     timestamp: new Date().toISOString(),
                 };
                 this.emitChat(client, chatId, 'responseChunk', payload);
-                this.logger.debug(`📤 Enviando chunk ${seq} a sala ${chatId}: ${payload.content.substring(0, 50)}...`);
+                this.logger.log(`📤 [CHUNK ${seq}] Enviando a sala ${chatId}: ${payload.content.substring(0, 50)}...`);
                 buffer = '';
             };
 
@@ -500,8 +501,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                 timestamp: new Date().toISOString(),
             });
 
-            this.logger.log(`📤 Enviando responseEnd a sala ${chatId} (${chunkCount} chunks)`);
-            this.logger.log(`Respuesta completada para ${chatId} (${chunkCount} chunks)`);
+            this.logger.log(`📤 [END] Enviando responseEnd a sala ${chatId} (${chunkCount} chunks)`);
+            this.logger.log(`✅ Respuesta completada para ${chatId} (${chunkCount} chunks)`);
             if (release) release();
         } catch (error) {
             this.logger.error(`Error en sendMessage para ${chatId}:`, error);
@@ -536,7 +537,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     ) {
         const { chatId } = data;
         client.join(chatId);
-        this.logger.log(`👥 Cliente ${client.id} se unió al chat: ${chatId}`);
+
+        const room = this.server.sockets.adapter.rooms.get(chatId);
+        const clientCount = room ? room.size : 0;
+        this.logger.log(`👥 Cliente ${client.id} se unió al chat: ${chatId} (${clientCount} clientes en sala)`);
 
         client.emit('joinedChat', { chatId });
     }
