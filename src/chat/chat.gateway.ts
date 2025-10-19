@@ -222,7 +222,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     ) {
         const broadcast = this.chatBroadcast.get(chatId) ?? true;
         if (broadcast) {
-            const room = this.server.sockets.adapter.rooms.get(chatId);
+            const room = (this.server as any).adapter?.rooms?.get(chatId);
             const clientCount = room ? room.size : 0;
             this.logger.log(`📡 [EMIT] ${event} → sala ${chatId} (${clientCount} clientes)`);
             this.server.to(chatId).emit(event, payload);
@@ -538,7 +538,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         const { chatId } = data;
         client.join(chatId);
 
-        const room = this.server.sockets.adapter.rooms.get(chatId);
+        const room = (this.server as any).adapter?.rooms?.get(chatId);
         const clientCount = room ? room.size : 0;
         this.logger.log(`👥 Cliente ${client.id} se unió al chat: ${chatId} (${clientCount} clientes en sala)`);
 
@@ -735,4 +735,3 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         }
     }
 }
-
