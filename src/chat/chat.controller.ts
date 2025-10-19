@@ -48,7 +48,7 @@ export class ChatController {
         private readonly usageService: UsageService,
     ) { }
 
-    // MÉTODO ELIMINADO: getChats() - duplicado con listConversations()
+    // MÃ‰TODO ELIMINADO: getChats() - duplicado con listConversations()
     // Usar /api/chat/conversations en su lugar
 
     /**
@@ -103,19 +103,19 @@ export class ChatController {
     }
 
     // ENDPOINT ELIMINADO: /api/chat/models
-    // Usar /api/models/public en su lugar para evitar duplicación
+    // Usar /api/models/public en su lugar para evitar duplicaciÃ³n
 
     // ENDPOINT ELIMINADO: /api/chat (duplicado con /api/chat/conversations)
     // Usar /api/chat/conversations en su lugar
 
     /**
-     * Obtener un chat específico con sus mensajes
+     * Obtener un chat especÃ­fico con sus mensajes
      */
-    @Get(':id([0-9a-fA-F-]{36})')
+    @Get(':id')
     @UseGuards(JwtAuthGuard)
     @ApiOperation({
-        summary: 'Obtener un chat específico',
-        description: 'Retorna un chat específico con todos sus mensajes',
+        summary: 'Obtener un chat especÃ­fico',
+        description: 'Retorna un chat especÃ­fico con todos sus mensajes',
     })
     @ApiResponse({
         status: 200,
@@ -149,7 +149,7 @@ export class ChatController {
         },
     })
     @ApiBearerAuth('JWT-auth')
-    async getChat(@Param('id') id: string, @Req() req: any) {
+    async getChat(@Param('id') id: string, @Req() req: any) {
         const userId = getUserIdFromReq(req);
 
         if (!userId) {
@@ -161,6 +161,13 @@ export class ChatController {
 
         try {
             const conversation = await this.chatService.getChat(id, userId);
+
+            if (!conversation) {
+                return {
+                    success: false,
+                    message: 'Chat no encontrado'
+                };
+            }
 
             // Convertir a formato esperado por el frontend
             const chatData = {
@@ -191,14 +198,14 @@ export class ChatController {
     }
 
     /**
-     * Enviar mensaje (anónimos y registrados)
+     * Enviar mensaje (anÃ³nimos y registrados)
      */
     @Post('message')
-    @Public() // Permitir acceso público para usuarios anónimos
+    @Public() // Permitir acceso pÃºblico para usuarios anÃ³nimos
     @ApiOperation({
         summary: 'Enviar mensaje al chat',
         description:
-            'Usuarios anónimos: 3 mensajes/día sin historial. Registrados: 50 mensajes/día con historial. Premium: 1000 mensajes/día + imágenes.',
+            'Usuarios anÃ³nimos: 3 mensajes/dÃ­a sin historial. Registrados: 50 mensajes/dÃ­a con historial. Premium: 1000 mensajes/dÃ­a + imÃ¡genes.',
     })
     @ApiResponse({
         status: 200,
@@ -207,11 +214,11 @@ export class ChatController {
     })
     @ApiResponse({
         status: 403,
-        description: 'Límite de mensajes alcanzado',
+        description: 'LÃ­mite de mensajes alcanzado',
     })
     @ApiBody({ type: SendMessageDto })
     async sendMessage(@Body() dto: SendMessageDto, @Req() req: any) {
-        // Obtener userId si está autenticado (opcional)
+        // Obtener userId si estÃ¡ autenticado (opcional)
         let userId = getUserIdFromReq(req);
         if (!userId) {
             userId = getUserIdFromAuthHeader(req.headers?.authorization);
@@ -222,9 +229,9 @@ export class ChatController {
     /**
      * Enviar mensaje (solo usuarios registrados con JWT)
      */
-    
+
     /**
-     * Streaming via SSE (HTTP) para an�nimos y registrados.
+     * Streaming via SSE (HTTP) para anónimos y registrados.
      * Emite chunks con 'data: {"content":"..."}' y finaliza con 'data: {"finished":true}'.
      */
     @Post('message/stream')
@@ -252,7 +259,7 @@ export class ChatController {
             userId ? undefined : dto.anonymousId,
         );
         if (!canSend.allowed) {
-            res.write(`data: ${JSON.stringify({ error: 'LIMIT_EXCEEDED', message: 'Has alcanzado tu l�mite de mensajes por d�a.' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ error: 'LIMIT_EXCEEDED', message: 'Has alcanzado tu límite de mensajes por día.' })}\n\n`);
             return res.end();
         }
 
@@ -372,7 +379,7 @@ export class ChatController {
             return res.end();
         }
     }
-@Post('message/authenticated')
+    @Post('message/authenticated')
     @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
@@ -388,12 +395,12 @@ export class ChatController {
     }
 
     /**
-     * Actualiza el primer mensaje del usuario y regenera el título si procede
+     * Actualiza el primer mensaje del usuario y regenera el tÃ­tulo si procede
      */
     @Patch(':conversationId/first-message')
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Actualizar primer mensaje y regenerar título' })
+    @ApiOperation({ summary: 'Actualizar primer mensaje y regenerar tÃ­tulo' })
     async updateFirstMessage(
         @Param('conversationId') conversationId: string,
         @Body() body: { content: string },
@@ -409,10 +416,10 @@ export class ChatController {
     @Get('usage/stats')
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Obtener estadísticas de uso del usuario' })
+    @ApiOperation({ summary: 'Obtener estadÃ­sticas de uso del usuario' })
     @ApiResponse({
         status: 200,
-        description: 'Estadísticas de uso',
+        description: 'EstadÃ­sticas de uso',
         schema: {
             example: {
                 todayMessages: 5,
@@ -433,7 +440,7 @@ export class ChatController {
         return this.chatService.getUserUsageStats(userId);
     }
 
-    // ========== ENDPOINTS REST PARA GESTIÓN DE CHATS ==========
+    // ========== ENDPOINTS REST PARA GESTIÃ“N DE CHATS ==========
 
     @Post('sessions')
     @UseGuards(JwtAuthGuard)
@@ -451,7 +458,7 @@ export class ChatController {
     async listChatSessions(@Request() req: any) {
         const userId = getUserIdFromReq(req)!;
         const chats = await this.chatService.listChats(userId);
-        try { console.log("[GET /chat/sessions] userId:", userId, "count:", Array.isArray(chats) ? chats.length : "n/a"); } catch {}
+        try { console.log("[GET /chat/sessions] userId:", userId, "count:", Array.isArray(chats) ? chats.length : "n/a"); } catch { }
         return { success: true, data: chats };
     }
 
@@ -490,10 +497,6 @@ export class ChatController {
         return { success: true, data: messages };
     }
 }
-
-
-
-
 
 
 

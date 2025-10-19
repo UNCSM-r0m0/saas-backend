@@ -306,21 +306,43 @@ export class ChatService {
     /**
      * Obtiene un chat específico con todos sus mensajes
      */
+    /**
+ * Obtiene un chat espec�fico con todos sus mensajes
+ * - 404 si no existe
+ * - 404 (mensaje claro) si no pertenece al usuario autenticado
+ */
     async getChat(chatId: string, userId: string) {
-        const chat = await this.prisma.chat.findFirst({
-            where: {
-                id: chatId,
-                ownerId: userId, // Asegurar que es del usuario
-            },
-            include: {
-                messages: {
-                    orderBy: { createdAt: 'asc' },
-                },
-            },
+        // Primero verificar existencia para diferenciar los casos
+        const exists = await this.prisma.chat.findUnique({
+            where: { id: chatId },
+            select: { id: true, ownerId: true },
+        });
+
+        if (!exists) {
+            throw new NotFoundException({
+                message: 'Chat no encontrado',
+                errorCode: 'CHAT_NOT_FOUND',
+            } as any);
+        }
+
+        if (exists.ownerId !== userId) {
+            // No revelamos informaci�n sensible (404 en lugar de 403), pero damos contexto
+            throw new NotFoundException({
+                message: 'Chat no pertenece al usuario autenticado',
+                errorCode: 'CHAT_NOT_FOUND_FOR_USER',
+            } as any);
+        }
+
+        const chat = await this.prisma.chat.findUnique({
+            where: { id: chatId },
+            include: { messages: { orderBy: { createdAt: 'asc' } } },
         });
 
         if (!chat) {
-            throw new NotFoundException('Chat no encontrado');
+            throw new NotFoundException({
+                message: 'Chat no encontrado',
+                errorCode: 'CHAT_NOT_FOUND',
+            } as any);
         }
 
         return chat;
@@ -563,3 +585,4 @@ export class ChatService {
         return cleanContent.substring(0, 47) + '...';
     }
 }
+
