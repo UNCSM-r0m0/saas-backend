@@ -8,6 +8,8 @@ export const corsOptions: CorsOptions = {
         /https?:\/\/([a-z0-9-]+\.)*ngrok-free\.(dev|app)$/i,
         'http://localhost:3001',
         'http://localhost:5173',
+        'https://app.r0lm0.dev',
+        'https://api.r0lm0.dev',
         'https://jeanett-uncolorable-pickily.ngrok-free.dev',
         'http://jeanett-uncolorable-pickily.ngrok-free.dev', // HTTP también para ngrok
     ],

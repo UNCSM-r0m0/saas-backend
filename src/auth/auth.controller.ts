@@ -56,17 +56,13 @@ export class AuthController {
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const isLocalhostFrontend = frontendUrl.includes('localhost');
 
-        // Para cross-origin HTTPS: usar Secure + SameSite=None
-        // Para same-site: usar SameSite=Lax
-        const useCrossSiteCookies = isLocalhostFrontend;
-
         res.cookie('access_token', access_token, {
             httpOnly: true,
-            secure: true, // true para HTTPS (ngrok)
-            sameSite: useCrossSiteCookies ? 'none' : 'lax', // 'none' para cross-site
+            secure: true,          // siempre true tras CF (HTTPS)
+            sameSite: 'lax',       // evita bloqueo cross-site típico
             path: '/',
             maxAge: 7 * 24 * 60 * 60 * 1000,
-            domain: undefined, // No especificar dominio
+            domain: '.r0lm0.dev',  // comparte entre subdominios
         });
         return res.json({ user: userData });
     }
@@ -111,22 +107,17 @@ export class AuthController {
         // Limpiar cookie antigua si existe
         res.clearCookie('auth_token', { path: '/' });
 
-        // Para cross-site (Vercel → ngrok), usar token en URL en lugar de cookie
-        if (isCrossSite) {
-            console.log('🔍 AuthController: Cross-site detectado, usando token en URL');
-            return res.redirect(`${frontendUrl}/?token=${access_token}&provider=google`);
-        } else {
-            // Para localhost, usar cookies
-            res.cookie('access_token', access_token, {
-                httpOnly: true,
-                secure: isProduction,
-                sameSite: 'strict',
-                path: '/',
-                maxAge: 15 * 60 * 1000, // 15 minutos
-            });
-            console.log('🔍 AuthController: Cookie configurada para localhost');
-            return res.redirect(`${frontendUrl}/auth/callback`);
-        }
+        // Configurar cookie para dominio compartido
+        res.cookie('access_token', access_token, {
+            httpOnly: true,
+            secure: true,          // siempre true tras CF (HTTPS)
+            sameSite: 'lax',       // evita bloqueo cross-site típico
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+            domain: '.r0lm0.dev',  // comparte entre subdominios
+        });
+        console.log('🔍 AuthController: Cookie configurada para dominio compartido');
+        return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
     // GitHub OAuth
@@ -154,28 +145,26 @@ export class AuthController {
         // Limpiar cookie antigua si existe
         res.clearCookie('auth_token', { path: '/' });
 
-        // Para cross-site (Vercel → ngrok), usar token en URL en lugar de cookie
-        if (isCrossSite) {
-            console.log('🔍 AuthController: Cross-site detectado, usando token en URL');
-            return res.redirect(`${frontendUrl}/auth/callback?token=${access_token}&provider=github`);
-        } else {
-            // Para localhost, usar cookies
-            res.cookie('access_token', access_token, {
-                httpOnly: true,
-                secure: isProduction,
-                sameSite: 'strict',
-                path: '/',
-                maxAge: 15 * 60 * 1000, // 15 minutos
-            });
-            console.log('🔍 AuthController: Cookie configurada para localhost');
-            return res.redirect(`${frontendUrl}/auth/callback`);
-        }
+        // Configurar cookie para dominio compartido
+        res.cookie('access_token', access_token, {
+            httpOnly: true,
+            secure: true,          // siempre true tras CF (HTTPS)
+            sameSite: 'lax',       // evita bloqueo cross-site típico
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+            domain: '.r0lm0.dev',  // comparte entre subdominios
+        });
+        console.log('🔍 AuthController: Cookie configurada para dominio compartido');
+        return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
     @Post('logout')
     @ApiOperation({ summary: 'Logout (borra cookie de autenticación)' })
     async logout(@Res() res: Response) {
-        res.clearCookie('access_token', { path: '/' });
+        res.clearCookie('access_token', {
+            path: '/',
+            domain: '.r0lm0.dev'
+        });
         return res.json({ success: true });
     }
 

@@ -12,6 +12,9 @@ async function bootstrap() {
     rawBody: true, // Necesario para webhooks de Stripe
   });
 
+  // Trust proxy para Cloudflare Tunnel
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   // Cookies
   app.use(cookieParser());
 
