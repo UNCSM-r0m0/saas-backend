@@ -111,7 +111,7 @@ export class ChatController {
     /**
      * Obtener un chat específico con sus mensajes
      */
-    @Get(':id')
+    @Get(':id([0-9a-fA-F-]{36})')
     @UseGuards(JwtAuthGuard)
     @ApiOperation({
         summary: 'Obtener un chat específico',
@@ -149,7 +149,7 @@ export class ChatController {
         },
     })
     @ApiBearerAuth('JWT-auth')
-    async getChat(@Param('id') id: string, @Req() req: any) {
+    async getChat(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string, @Req() req: any) {
         const userId = getUserIdFromReq(req);
 
         if (!userId) {
@@ -490,6 +490,8 @@ export class ChatController {
         return { success: true, data: messages };
     }
 }
+
+
 
 
 
