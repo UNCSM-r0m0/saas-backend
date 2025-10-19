@@ -319,7 +319,7 @@ export class ChatService {
      * Obtiene un chat específico con todos sus mensajes
      */
     /**
- * Obtiene un chat espec�fico con todos sus mensajes
+ * Obtiene un chat específico con todos sus mensajes
  * - 404 si no existe
  * - 404 (mensaje claro) si no pertenece al usuario autenticado
  */
@@ -338,7 +338,7 @@ export class ChatService {
         }
 
         if (exists.ownerId !== userId) {
-            // No revelamos informaci�n sensible (404 en lugar de 403), pero damos contexto
+            // No revelamos información sensible (404 en lugar de 403), pero damos contexto
             throw new NotFoundException({
                 message: 'Chat no pertenece al usuario autenticado',
                 errorCode: 'CHAT_NOT_FOUND_FOR_USER',

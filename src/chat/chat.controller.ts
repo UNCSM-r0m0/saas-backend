@@ -103,6 +103,85 @@ export class ChatController {
         };
     }
 
+    // ---- Chat sessions (placed before dynamic ":id" to avoid collisions) ----
+    @Post('sessions-dup')
+    @UseGuards(JwtAuthGuard)
+    async createChatSession_dup(
+        @Request() req: any,
+        @Body() body: { title?: string }
+    ) {
+        const userId = getUserIdFromReq(req)!;
+        const chat = await this.chatService.createChat(userId, body.title);
+        return { success: true, data: chat };
+    }
+
+    @Get('sessions-dup')
+    @UseGuards(JwtAuthGuard)
+    @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+    @Header('Pragma', 'no-cache')
+    @Header('Expires', '0')
+    @Header('Vary', 'Cookie, Authorization, Origin')
+    async listChatSessions_dup(@Request() req: any) {
+        const userId = getUserIdFromReq(req)!;
+        console.log(`🔍 [GET /chat/sessions] Iniciando para userId: ${userId}`);
+
+        try {
+            const chats = await this.chatService.listChats(userId);
+            console.log(`📊 [GET /chat/sessions] Chats encontrados: ${Array.isArray(chats) ? chats.length : 'n/a'}`);
+            console.log(`📋 [GET /chat/sessions] Datos de chats:`, chats);
+
+            const response = { success: true, data: chats };
+            console.log(`✅ [GET /chat/sessions] Respuesta enviada:`, response);
+            return response;
+        } catch (error) {
+            console.error(`❌ [GET /chat/sessions] Error:`, error);
+            return {
+                success: false,
+                message: error.message || 'Error al obtener chats',
+                error: error.toString()
+            };
+        }
+    }
+
+    @Patch('sessions-dup/:id')
+    @UseGuards(JwtAuthGuard)
+    async renameChatSession_dup(
+        @Param('id') chatId: string,
+        @Body() body: { title: string },
+        @Request() req: any
+    ) {
+        const userId = getUserIdFromReq(req)!;
+        await this.chatService.renameChat(chatId, body.title, userId);
+        return { success: true, message: 'Chat renombrado exitosamente' };
+    }
+
+    @Delete('sessions-dup/:id')
+    @UseGuards(JwtAuthGuard)
+    async deleteChatSession_dup(
+        @Param('id') chatId: string,
+        @Request() req: any
+    ) {
+        const userId = getUserIdFromReq(req)!;
+        await this.chatService.deleteChat(chatId, userId);
+        return { success: true, message: 'Chat eliminado exitosamente' };
+    }
+
+    @Get('sessions-dup/:id/messages')
+    @UseGuards(JwtAuthGuard)
+    @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+    @Header('Pragma', 'no-cache')
+    @Header('Expires', '0')
+    @Header('Vary', 'Cookie, Authorization, Origin')
+    async getChatSessionMessages_dup(
+        @Param('id') chatId: string,
+        @Request() req: any,
+        @Query('limit') limit?: string,
+        @Query('cursor') cursor?: string
+    ): Promise<any> {
+        const messages = await this.chatService.getChatHistory(chatId);
+        return { success: true, data: messages };
+    }
+
     // ENDPOINT ELIMINADO: /api/chat/models
     // Usar /api/models/public en su lugar para evitar duplicaciÃ³n
 
@@ -199,10 +278,10 @@ export class ChatController {
     }
 
     /**
-     * Enviar mensaje (anÃ³nimos y registrados)
+     * Enviar mensaje (anónimos y registrados)
      */
     @Post('message')
-    @Public() // Permitir acceso pÃºblico para usuarios anÃ³nimos
+    @Public() // Permitir acceso público para usuarios anónimos
     @ApiOperation({
         summary: 'Enviar mensaje al chat',
         description:
@@ -441,7 +520,7 @@ export class ChatController {
         return this.chatService.getUserUsageStats(userId);
     }
 
-    // ========== ENDPOINTS REST PARA GESTIÃ“N DE CHATS ==========
+    // ========== ENDPOINTS REST PARA GESTIÓN DE CHATS ==========
 
     @Post('sessions')
     @UseGuards(JwtAuthGuard)
