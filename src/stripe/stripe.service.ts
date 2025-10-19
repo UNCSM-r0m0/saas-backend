@@ -52,8 +52,9 @@ export class StripeService {
                     },
                 ],
                 mode: 'subscription',
-                success_url: `${this.configService.get('FRONTEND_URL')}/#/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-                cancel_url: `${this.configService.get('FRONTEND_URL')}/#/payment/cancel`,
+                // BrowserRouter paths (no hash) so the app route matches and can confirm immediately
+                success_url: `${this.configService.get('FRONTEND_URL')}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${this.configService.get('FRONTEND_URL')}/payment/cancel`,
                 metadata: {
                     userId: userId,
                 },
