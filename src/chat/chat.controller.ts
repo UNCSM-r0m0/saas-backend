@@ -10,7 +10,9 @@ import {
     UseGuards,
     Request,
     Req,
+    Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import {
     ApiTags,
@@ -28,6 +30,7 @@ import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { UsageService } from '../usage/usage.service';
 import { JwtService } from '@nestjs/jwt';
 import { DeepSeekService } from '../deepseek/deepseek.service';
 import { getUserIdFromReq, getUserIdFromAuthHeader } from '../common/utils/auth.util';
@@ -42,6 +45,7 @@ export class ChatController {
         private readonly openaiService: OpenAIService,
         private readonly deepseekService: DeepSeekService,
         private readonly subscriptionsService: SubscriptionsService,
+        private readonly usageService: UsageService,
     ) { }
 
     // M脡TODO ELIMINADO: getChats() - duplicado con listConversations()
@@ -145,8 +149,7 @@ export class ChatController {
         },
     })
     @ApiBearerAuth('JWT-auth')
-    async getChat(@Param('id') id: string, @Req() req: any) {
-        console.log('馃攳 getChat: Iniciando con id:', id);
+    async getChat(@Param('id') id: string, @Req() req: any) {
         const userId = getUserIdFromReq(req);
 
         if (!userId) {
@@ -219,7 +222,157 @@ export class ChatController {
     /**
      * Enviar mensaje (solo usuarios registrados con JWT)
      */
-    @Post('message/authenticated')
+    
+    /**
+     * Streaming via SSE (HTTP) para an髇imos y registrados.
+     * Emite chunks con 'data: {"content":"..."}' y finaliza con 'data: {"finished":true}'.
+     */
+    @Post('message/stream')
+    @Public()
+    @ApiOperation({ summary: 'Enviar mensaje con streaming (SSE)' })
+    @ApiResponse({ status: 200, description: 'Stream iniciado' })
+    @ApiBody({ type: SendMessageDto })
+    async streamMessage(
+        @Body() dto: SendMessageDto,
+        @Req() req: any,
+        @Res() res: Response,
+    ) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders?.();
+
+        let userId = getUserIdFromReq(req);
+        if (!userId) {
+            userId = getUserIdFromAuthHeader(req.headers?.authorization);
+        }
+
+        const canSend = await this.usageService.canSendMessage(
+            userId || undefined,
+            userId ? undefined : dto.anonymousId,
+        );
+        if (!canSend.allowed) {
+            res.write(`data: ${JSON.stringify({ error: 'LIMIT_EXCEEDED', message: 'Has alcanzado tu l韒ite de mensajes por d韆.' })}\n\n`);
+            return res.end();
+        }
+
+        let tier = 'FREE' as any;
+        if (userId) {
+            const sub = await this.subscriptionsService.getOrCreateSubscription(userId);
+            tier = sub?.tier || 'FREE';
+        }
+        const limits = this.subscriptionsService.getUserLimits(tier);
+
+        let chatId = dto.conversationId;
+        if (userId && !chatId) {
+            const chat = await this.chatService.createChat(userId, this.chatService['generateTitle'](dto.content));
+            chatId = chat.id;
+        }
+
+        if (userId && chatId) {
+            await this.chatService.saveUserMessageToChat(chatId, userId, dto.content, dto.model);
+        }
+
+        const history = userId && chatId ? await this.chatService.getChatHistory(chatId) : [];
+
+        const selectedModel = (dto.model || 'ollama').trim();
+        const premium = ['gemini', 'openai', 'deepseek'];
+        if (premium.includes(selectedModel) && tier !== 'PREMIUM') {
+            res.write(`data: ${JSON.stringify({ error: 'PREMIUM_REQUIRED', message: 'Este modelo es Premium.' })}\n\n`);
+            return res.end();
+        }
+
+        const sendChunk = (text: string) => {
+            if (!text) return;
+            res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+        };
+
+        const finish = async (fullContent: string) => {
+            if (chatId) {
+                await this.chatService.saveAssistantMessageToChat(chatId, userId || null, fullContent, selectedModel);
+                await this.usageService.incrementMessageCount(0, userId || undefined, userId ? undefined : dto.anonymousId);
+            }
+            res.write(`data: ${JSON.stringify({ finished: true, conversationId: chatId || 'temp-chat-id' })}\n\n`);
+            res.end();
+        };
+
+        try {
+            let fullContent = '';
+
+            if (selectedModel === 'gemini') {
+                const prompt = dto.content;
+                for await (const chunk of await this.geminiService.generateStreamingResponse(prompt, { maxTokens: limits.maxTokensPerMessage })) {
+                    fullContent += chunk;
+                    sendChunk(chunk);
+                }
+                return await finish(fullContent);
+            }
+
+            if (selectedModel === 'openai') {
+                const prompt = dto.content;
+                for await (const chunk of await this.openaiService.generateStreamingResponse(prompt, { maxTokens: limits.maxTokensPerMessage })) {
+                    fullContent += chunk;
+                    sendChunk(chunk);
+                }
+                return await finish(fullContent);
+            }
+
+            if (selectedModel === 'deepseek') {
+                const result = await this.deepseekService.generateResponse(dto.content, { maxTokens: limits.maxTokensPerMessage });
+                fullContent = result.response;
+                sendChunk(fullContent);
+                return await finish(fullContent);
+            }
+
+            const ollamaMessages = [
+                ...history.map((m) => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
+                { role: 'user' as const, content: dto.content },
+            ];
+            let ollamaModel: string | undefined = selectedModel;
+            if (selectedModel.startsWith('ollama-')) {
+                ollamaModel = selectedModel.replace('ollama-', '');
+            } else if (selectedModel === 'ollama') {
+                ollamaModel = undefined;
+            }
+
+            const makeR1Processor = () => {
+                let inThink = false;
+                return (chunk: string) => {
+                    let i = 0; let resp = '';
+                    const startTag = '<think>'; const endTag = '</think>';
+                    while (i < chunk.length) {
+                        if (!inThink) {
+                            const j = chunk.indexOf(startTag, i);
+                            if (j === -1) { resp += chunk.slice(i); break; }
+                            resp += chunk.slice(i, j); i = j + startTag.length; inThink = true;
+                        } else {
+                            const k = chunk.indexOf(endTag, i);
+                            if (k === -1) { break; }
+                            i = k + endTag.length; inThink = false;
+                        }
+                    }
+                    return resp;
+                };
+            };
+            const processR1 = makeR1Processor();
+
+            for await (const part of this.ollamaService.generateStream(ollamaMessages, ollamaModel, limits.maxTokensPerMessage)) {
+                const piece = typeof part === 'string' ? part : (part?.content ?? '');
+                if (!piece) continue;
+                const cleaned = processR1(piece);
+                if (cleaned) {
+                    fullContent += cleaned;
+                    sendChunk(cleaned);
+                }
+            }
+
+            return await finish(fullContent);
+        } catch (err: any) {
+            res.write(`data: ${JSON.stringify({ error: 'STREAM_ERROR', message: err?.message || 'Error en streaming' })}\n\n`);
+            return res.end();
+        }
+    }
+@Post('message/authenticated')
     @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
@@ -252,71 +405,6 @@ export class ChatController {
 
     /**
      * Listar conversaciones del usuario
-     */
-    @Get('conversations')
-    @UseGuards(ClientTypeGuard, JwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Listar chats del usuario' })
-    @ApiResponse({ status: 200, description: 'Lista de chats' })
-    async listConversations(@Req() req: any) {
-        const userId = getUserIdFromReq(req)!;
-        return this.chatService.getUserChats(userId);
-    }
-
-    /**
-     * Obtener conversaci贸n espec铆fica
-     */
-    @Get('conversations/:id')
-    @UseGuards(ClientTypeGuard, JwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Obtener una conversaci贸n con todos sus mensajes' })
-    @ApiResponse({ status: 200, description: 'Conversaci贸n completa' })
-    @ApiResponse({ status: 404, description: 'Conversaci贸n no encontrada' })
-    async getConversation(@Param('id') id: string, @Req() req: any) {
-        const userId = getUserIdFromReq(req)!;
-        return this.chatService.getChat(id, userId);
-    }
-
-    /**
-     * Actualizar t铆tulo de conversaci贸n
-     */
-    @Patch('conversations/:id/title')
-    @UseGuards(ClientTypeGuard, JwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Actualizar t铆tulo de conversaci贸n' })
-    @ApiResponse({ status: 200, description: 'T铆tulo actualizado' })
-    @ApiBody({
-        schema: {
-            type: 'object',
-            properties: {
-                title: { type: 'string', example: 'Mi conversaci贸n sobre NestJS' },
-            },
-        },
-    })
-    async updateConversationTitle(
-        @Param('id') id: string,
-        @Body('title') title: string,
-        @Req() req: any,
-    ) {
-        const userId = getUserIdFromReq(req)!;
-        return this.chatService.updateChatTitle(id, userId, title);
-    }
-
-    /**
-     * Eliminar conversaci贸n
-     */
-    @Delete('conversations/:id')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Eliminar conversaci贸n' })
-    @ApiResponse({ status: 200, description: 'Conversaci贸n eliminada' })
-    async deleteConversation(@Param('id') id: string, @Req() req: any) {
-        const userId = getUserIdFromReq(req)!;
-        return this.chatService.deleteChat(id, userId);
-    }
-
-    /**
-     * Obtener estad铆sticas de uso
      */
     @Get('usage/stats')
     @UseGuards(JwtAuthGuard)
@@ -401,3 +489,6 @@ export class ChatController {
         return { success: true, data: messages };
     }
 }
+
+
+
