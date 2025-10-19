@@ -73,6 +73,35 @@ export class StripeService {
     }
 
     /**
+     * Confirmar una sesión de Checkout de Stripe inmediatamente tras el éxito.
+     * Evita depender del retraso del webhook.
+     */
+    async confirmCheckoutSession(sessionId: string, requestUserId: string) {
+        if (!this.stripe) {
+            throw new Error('Stripe not configured. Please set STRIPE_SECRET_KEY in environment variables.');
+        }
+
+        const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+        const metaUserId = session.metadata?.userId;
+        if (!metaUserId) {
+            throw new Error('Missing userId in session metadata');
+        }
+        if (metaUserId !== requestUserId) {
+            throw new Error('Session does not belong to current user');
+        }
+
+        if (!session.subscription) {
+            throw new Error('No subscription attached to session');
+        }
+
+        const subscription = await this.stripe.subscriptions.retrieve(session.subscription as string);
+        await this.createOrUpdateSubscription(metaUserId, subscription);
+        this.wsEmitter.emitToUser(metaUserId, 'subscriptionUpdated', await this.getUserSubscription(metaUserId));
+
+        return this.getUserSubscription(metaUserId);
+    }
+
+    /**
      * Crear portal de facturación para gestionar suscripción
      */
     async createBillingPortalSession(userId: string): Promise<Stripe.BillingPortal.Session> {

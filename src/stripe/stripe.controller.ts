@@ -80,6 +80,27 @@ export class StripeController {
     }
 
     /**
+     * Confirmar sesión de checkout (post-redirect), acelera la actualización de la suscripción.
+     * Acepta tanto query param (session_id) como body { sessionId }.
+     */
+    @Post('confirm-session')
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
+    @ApiBearerAuth()
+    async confirmCheckout(
+        @Req() req: any,
+        @Body('sessionId') bodySessionId?: string,
+    ) {
+        const url = new URL(req?.headers?.referer || 'http://localhost');
+        const querySession = url.searchParams.get('session_id') || undefined;
+        const sessionId = bodySessionId || querySession;
+        if (!sessionId) {
+            throw new Error('sessionId is required');
+        }
+        const sub = await this.stripeService.confirmCheckoutSession(sessionId, req.user.id);
+        return sub;
+    }
+
+    /**
      * Crear sesión del portal de facturación
      */
     @Post('create-portal-session')
