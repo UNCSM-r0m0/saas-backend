@@ -10,6 +10,12 @@ CF_NAME="cloudflared"
 CF_BIN="/usr/local/bin/cloudflared"     # salida de: which cloudflared
 CF_ARGS=(--no-autoupdate --config /etc/cloudflared/config.yml tunnel run)
 
+# Ollama
+OLLAMA_SERVE_NAME="ollama-serve"
+OLLAMA_MODEL_NAME="ollama-model"
+OLLAMA_BIN="/usr/local/bin/ollama"      # salida de: which ollama
+OLLAMA_MODEL="qwen2.5-coder:7b"
+
 # Colores
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
@@ -19,9 +25,9 @@ usage() {
   echo -e "${BLUE}========================================${NC}\n"
   echo -e "${YELLOW}Uso: $0 {comando}${NC}\n"
   echo -e "${GREEN}COMANDOS BACKEND:${NC}"
-  echo -e "  ${YELLOW}start${NC}         : Inicia túnel + backend"
-  echo -e "  ${YELLOW}stop${NC}          : Detiene backend + túnel"
-  echo -e "  ${YELLOW}restart${NC}       : Reinicia backend + túnel"
+  echo -e "  ${YELLOW}start${NC}         : Inicia túnel + ollama + backend"
+  echo -e "  ${YELLOW}stop${NC}          : Detiene backend + túnel + ollama"
+  echo -e "  ${YELLOW}restart${NC}       : Reinicia backend + túnel + ollama"
   echo -e "  ${YELLOW}reload${NC}        : Recarga solo backend (sin downtime)"
   echo -e "  ${YELLOW}status${NC}        : Estado PM2 y endpoints"
   echo -e "  ${YELLOW}logs${NC}          : Logs del backend"
@@ -37,6 +43,11 @@ usage() {
   echo -e "  ${YELLOW}tunnel-stop${NC}   : Detiene Cloudflared"
   echo -e "  ${YELLOW}tunnel-restart${NC}: Reinicia Cloudflared"
   echo -e "  ${YELLOW}tunnel-logs${NC}   : Logs de Cloudflared\n"
+  echo -e "${GREEN}COMANDOS OLLAMA:${NC}"
+  echo -e "  ${YELLOW}ollama-start${NC}  : Inicia Ollama serve + modelo"
+  echo -e "  ${YELLOW}ollama-stop${NC}    : Detiene Ollama"
+  echo -e "  ${YELLOW}ollama-restart${NC} : Reinicia Ollama"
+  echo -e "  ${YELLOW}ollama-logs${NC}   : Logs de Ollama\n"
   echo -e "${BLUE}Ejemplos:${NC}"
   echo -e "  $0 start"
   echo -e "  $0 tunnel-logs"
@@ -66,6 +77,14 @@ check_cloudflared_bin() {
   if [ ! -x "$CF_BIN" ]; then
     echo -e "${RED}❌ No se encontró cloudflared en ${CF_BIN}${NC}"
     echo -e "${YELLOW}➡️  Ejecuta: which cloudflared y actualiza CF_BIN en este script${NC}"
+    exit 1
+  fi
+}
+
+check_ollama_bin() {
+  if [ ! -x "$OLLAMA_BIN" ]; then
+    echo -e "${RED}❌ No se encontró ollama en ${OLLAMA_BIN}${NC}"
+    echo -e "${YELLOW}➡️  Ejecuta: which ollama y actualiza OLLAMA_BIN en este script${NC}"
     exit 1
   fi
 }
@@ -107,6 +126,43 @@ tunnel_restart() {
   fi
 }
 
+ollama_start() {
+  check_ollama_bin
+  
+  # Iniciar Ollama serve
+  if ! pm2 describe "$OLLAMA_SERVE_NAME" >/dev/null 2>&1; then
+    echo -e "${GREEN}🚀 Iniciando Ollama serve...${NC}"
+    pm2 start "$OLLAMA_BIN" --name "$OLLAMA_SERVE_NAME" -- serve
+    sleep 3  # Esperar a que el servidor esté listo
+  else
+    echo -e "${YELLOW}🔄 Arrancando proceso existente de Ollama serve...${NC}"
+    pm2 start "$OLLAMA_SERVE_NAME"
+  fi
+  
+  # Iniciar el modelo específico
+  if ! pm2 describe "$OLLAMA_MODEL_NAME" >/dev/null 2>&1; then
+    echo -e "${GREEN}🤖 Iniciando modelo ${OLLAMA_MODEL}...${NC}"
+    pm2 start "$OLLAMA_BIN" --name "$OLLAMA_MODEL_NAME" -- run "$OLLAMA_MODEL"
+  else
+    echo -e "${YELLOW}🔄 Arrancando proceso existente del modelo...${NC}"
+    pm2 start "$OLLAMA_MODEL_NAME"
+  fi
+}
+
+ollama_stop() {
+  echo -e "${YELLOW}🛑 Deteniendo Ollama...${NC}"
+  pm2 stop "$OLLAMA_MODEL_NAME" 2>/dev/null || true
+  pm2 stop "$OLLAMA_SERVE_NAME" 2>/dev/null || true
+}
+
+ollama_restart() {
+  check_ollama_bin
+  echo -e "${YELLOW}🔄 Reiniciando Ollama...${NC}"
+  pm2 restart "$OLLAMA_SERVE_NAME" 2>/dev/null || ollama_start
+  sleep 2
+  pm2 restart "$OLLAMA_MODEL_NAME" 2>/dev/null || ollama_start
+}
+
 # --- Flow principal ---
 [ $# -lt 1 ] && usage
 check_directory
@@ -114,6 +170,7 @@ check_directory
 case "$1" in
   start)
     tunnel_start
+    ollama_start
     echo -e "${GREEN}🚀 Iniciando '${APP_NAME}'...${NC}"
     pm2 start ecosystem.config.js
     pm2 save
@@ -125,6 +182,7 @@ case "$1" in
     echo -e "${YELLOW}🛑 Deteniendo '${APP_NAME}'...${NC}"
     pm2 stop "$APP_NAME" || true
     tunnel_stop
+    ollama_stop
     pm2 save
     echo -e "${GREEN}✅ Servicios detenidos${NC}"
     pm2 status
@@ -132,6 +190,7 @@ case "$1" in
 
   restart)
     tunnel_restart
+    ollama_restart
     echo -e "${YELLOW}🔄 Reiniciando '${APP_NAME}'...${NC}"
     pm2 restart "$APP_NAME"
     pm2 save
@@ -193,6 +252,12 @@ case "$1" in
     curl -s http://localhost:3000/api | head -c 100; echo ""
     echo -e "${YELLOW}4) Health dominio:${NC}"
     curl -s -o /dev/null -w "Status: %{http_code}\n" https://api.r0lm0.dev/api/health
+    echo ""
+    echo -e "${YELLOW}5) Ollama serve:${NC}"
+    curl -s -o /dev/null -w "Status: %{http_code}\n" http://localhost:11434/api/tags
+    echo ""
+    echo -e "${YELLOW}6) Modelo ${OLLAMA_MODEL}:${NC}"
+    curl -s -o /dev/null -w "Status: %{http_code}\n" http://localhost:11434/api/show -d "{\"name\":\"${OLLAMA_MODEL}\"}"
     echo -e "${GREEN}✅ Pruebas completadas${NC}"
     ;;
 
@@ -213,6 +278,7 @@ case "$1" in
     echo -e "${RED}🚨 RESET DB COMPLETO${NC}"
     echo -e "${YELLOW}⚠️  Esto elimina TODOS los datos${NC}\n"
     pm2 stop "$APP_NAME" 2>/dev/null || true
+    ollama_stop
     pkill -f "prisma studio" 2>/dev/null || true
     PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="true" npx prisma db push --force-reset --schema prisma/schema.prisma
     echo -e "${GREEN}🌱 Seed...${NC}"
@@ -236,6 +302,25 @@ case "$1" in
 
   tunnel-logs)
     pm2 logs "$CF_NAME" --lines 200 --raw
+    ;;
+
+  ollama-start)
+    ollama_start; pm2 save; pm2 status
+    ;;
+
+  ollama-stop)
+    ollama_stop; pm2 save; pm2 status
+    ;;
+
+  ollama-restart)
+    ollama_restart; pm2 save; pm2 status
+    ;;
+
+  ollama-logs)
+    echo -e "${BLUE}📜 Logs de Ollama serve:${NC}"
+    pm2 logs "$OLLAMA_SERVE_NAME" --lines 50 --raw
+    echo -e "\n${BLUE}📜 Logs del modelo ${OLLAMA_MODEL}:${NC}"
+    pm2 logs "$OLLAMA_MODEL_NAME" --lines 50 --raw
     ;;
 
   *)

@@ -346,6 +346,8 @@ Probar endpoints:
 
 ## ollama run deepseek-r1:7b
 
+## ollama serve
+
 ## ollama run qwen2.5-coder:7b
 
 ## npm run prisma:studio
