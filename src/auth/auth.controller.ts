@@ -74,11 +74,6 @@ export class AuthController {
     @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     getProfile(@CurrentUser() user: any, @Req() req: any) {
-        console.log('🔍 getProfile: Petición recibida');
-        console.log('🔍 getProfile: User:', user);
-        console.log('🔍 getProfile: Headers:', req.headers);
-        console.log('🔍 getProfile: Cookies:', req.cookies);
-        console.log('🔍 getProfile: Authorization header:', req.headers.authorization);
         return user;
     }
 
@@ -116,7 +111,6 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
             domain: '.r0lm0.dev',  // comparte entre subdominios
         });
-        console.log('🔍 AuthController: Cookie configurada para dominio compartido');
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
@@ -154,7 +148,6 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
             domain: '.r0lm0.dev',  // comparte entre subdominios
         });
-        console.log('🔍 AuthController: Cookie configurada para dominio compartido');
         return res.redirect(`${frontendUrl}/auth/callback`);
     }
 
@@ -210,3 +203,4 @@ export class AuthController {
         return { access_token, user: userData };
     }
 }
+
