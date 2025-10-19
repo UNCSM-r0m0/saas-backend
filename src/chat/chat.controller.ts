@@ -457,9 +457,24 @@ export class ChatController {
     @UseGuards(JwtAuthGuard)
     async listChatSessions(@Request() req: any) {
         const userId = getUserIdFromReq(req)!;
-        const chats = await this.chatService.listChats(userId);
-        try { console.log("[GET /chat/sessions] userId:", userId, "count:", Array.isArray(chats) ? chats.length : "n/a"); } catch { }
-        return { success: true, data: chats };
+        console.log(`🔍 [GET /chat/sessions] Iniciando para userId: ${userId}`);
+
+        try {
+            const chats = await this.chatService.listChats(userId);
+            console.log(`📊 [GET /chat/sessions] Chats encontrados: ${Array.isArray(chats) ? chats.length : 'n/a'}`);
+            console.log(`📋 [GET /chat/sessions] Datos de chats:`, chats);
+
+            const response = { success: true, data: chats };
+            console.log(`✅ [GET /chat/sessions] Respuesta enviada:`, response);
+            return response;
+        } catch (error) {
+            console.error(`❌ [GET /chat/sessions] Error:`, error);
+            return {
+                success: false,
+                message: error.message || 'Error al obtener chats',
+                error: error.toString()
+            };
+        }
     }
 
     @Patch('sessions/:id')

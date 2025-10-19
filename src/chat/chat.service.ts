@@ -288,19 +288,31 @@ export class ChatService {
      * Lista chats de un usuario
      */
     async getUserChats(userId: string) {
-        return this.prisma.chat.findMany({
-            where: { ownerId: userId },
-            orderBy: { updatedAt: 'desc' },
-            include: {
-                messages: {
-                    take: 1,
-                    orderBy: { createdAt: 'desc' },
+        console.log(`🔍 [ChatService.getUserChats] Buscando chats para userId: ${userId}`);
+
+        try {
+            const chats = await this.prisma.chat.findMany({
+                where: { ownerId: userId },
+                orderBy: { updatedAt: 'desc' },
+                include: {
+                    messages: {
+                        take: 1,
+                        orderBy: { createdAt: 'desc' },
+                    },
+                    _count: {
+                        select: { messages: true },
+                    },
                 },
-                _count: {
-                    select: { messages: true },
-                },
-            },
-        });
+            });
+
+            console.log(`📊 [ChatService.getUserChats] Query ejecutada. Resultados: ${chats.length}`);
+            console.log(`📋 [ChatService.getUserChats] Chats:`, chats.map(c => ({ id: c.id, title: c.title, messageCount: c._count.messages })));
+
+            return chats;
+        } catch (error) {
+            console.error(`❌ [ChatService.getUserChats] Error en query:`, error);
+            throw error;
+        }
     }
 
     /**
@@ -374,6 +386,8 @@ export class ChatService {
      * Crea un nuevo chat
      */
     async createChat(ownerId?: string, title?: string): Promise<any> {
+        console.log(`🔍 [ChatService.createChat] Creando chat para ownerId: ${ownerId}, title: ${title || 'Nueva conversación'}`);
+
         try {
             const chat = await this.prisma.chat.create({
                 data: {
@@ -383,8 +397,10 @@ export class ChatService {
                 },
             });
 
+            console.log(`✅ [ChatService.createChat] Chat creado: ${chat.id} - ${chat.title}`);
             return chat;
         } catch (error) {
+            console.error(`❌ [ChatService.createChat] Error:`, error);
             this.logger.error('Error creando chat:', error);
             throw error;
         }
@@ -499,7 +515,22 @@ export class ChatService {
      * Lista chats (alias para compatibilidad)
      */
     async listChats(ownerId?: string): Promise<any[]> {
-        return this.getUserChats(ownerId || '');
+        console.log(`🔍 [ChatService.listChats] Iniciando para ownerId: ${ownerId}`);
+
+        if (!ownerId) {
+            console.log(`⚠️ [ChatService.listChats] ownerId es undefined/null`);
+            return [];
+        }
+
+        try {
+            const chats = await this.getUserChats(ownerId);
+            console.log(`📊 [ChatService.listChats] Chats encontrados: ${Array.isArray(chats) ? chats.length : 'n/a'}`);
+            console.log(`📋 [ChatService.listChats] Datos:`, chats);
+            return chats;
+        } catch (error) {
+            console.error(`❌ [ChatService.listChats] Error:`, error);
+            throw error;
+        }
     }
 
     /**
@@ -531,6 +562,8 @@ export class ChatService {
      * Guarda mensaje de usuario en chat (alias para compatibilidad)
      */
     async saveUserMessageToChat(chatId: string, userId: string | null, content: string, model?: string): Promise<any> {
+        console.log(`🔍 [ChatService.saveUserMessageToChat] Guardando mensaje para chatId: ${chatId}, userId: ${userId}`);
+
         const message = await this.prisma.message.create({
             data: {
                 chatId,
@@ -541,11 +574,15 @@ export class ChatService {
             },
         });
 
+        console.log(`✅ [ChatService.saveUserMessageToChat] Mensaje guardado: ${message.id}`);
+
         // Actualizar timestamp del chat
         await this.prisma.chat.update({
             where: { id: chatId },
             data: { updatedAt: new Date() },
         });
+
+        console.log(`✅ [ChatService.saveUserMessageToChat] Timestamp del chat actualizado`);
 
         return message;
     }
