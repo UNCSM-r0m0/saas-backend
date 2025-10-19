@@ -451,6 +451,7 @@ export class ChatController {
     async listChatSessions(@Request() req: any) {
         const userId = getUserIdFromReq(req)!;
         const chats = await this.chatService.listChats(userId);
+        try { console.log("[GET /chat/sessions] userId:", userId, "count:", Array.isArray(chats) ? chats.length : "n/a"); } catch {}
         return { success: true, data: chats };
     }
 
@@ -489,6 +490,7 @@ export class ChatController {
         return { success: true, data: messages };
     }
 }
+
 
 
 
