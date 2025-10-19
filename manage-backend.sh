@@ -16,6 +16,10 @@ OLLAMA_MODEL_NAME="ollama-model"
 OLLAMA_BIN="/usr/local/bin/ollama"      # salida de: which ollama
 OLLAMA_MODEL="qwen2.5-coder:7b"
 
+# PostgreSQL
+POSTGRES_SERVICE="postgresql"
+POSTGRES_PORT="5432"
+
 # Colores
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
@@ -25,9 +29,9 @@ usage() {
   echo -e "${BLUE}========================================${NC}\n"
   echo -e "${YELLOW}Uso: $0 {comando}${NC}\n"
   echo -e "${GREEN}COMANDOS BACKEND:${NC}"
-  echo -e "  ${YELLOW}start${NC}         : Inicia túnel + ollama + backend"
-  echo -e "  ${YELLOW}stop${NC}          : Detiene backend + túnel + ollama"
-  echo -e "  ${YELLOW}restart${NC}       : Reinicia backend + túnel + ollama"
+  echo -e "  ${YELLOW}start${NC}         : Inicia postgres + túnel + ollama + backend"
+  echo -e "  ${YELLOW}stop${NC}          : Detiene backend + túnel + ollama + postgres"
+  echo -e "  ${YELLOW}restart${NC}       : Reinicia backend + túnel + ollama + postgres"
   echo -e "  ${YELLOW}reload${NC}        : Recarga solo backend (sin downtime)"
   echo -e "  ${YELLOW}status${NC}        : Estado PM2 y endpoints"
   echo -e "  ${YELLOW}logs${NC}          : Logs del backend"
@@ -48,6 +52,10 @@ usage() {
   echo -e "  ${YELLOW}ollama-stop${NC}    : Detiene Ollama"
   echo -e "  ${YELLOW}ollama-restart${NC} : Reinicia Ollama"
   echo -e "  ${YELLOW}ollama-logs${NC}   : Logs de Ollama\n"
+  echo -e "${GREEN}COMANDOS POSTGRES:${NC}"
+  echo -e "  ${YELLOW}postgres-start${NC} : Inicia PostgreSQL"
+  echo -e "  ${YELLOW}postgres-stop${NC}  : Detiene PostgreSQL"
+  echo -e "  ${YELLOW}postgres-status${NC}: Estado de PostgreSQL\n"
   echo -e "${BLUE}Ejemplos:${NC}"
   echo -e "  $0 start"
   echo -e "  $0 tunnel-logs"
@@ -86,6 +94,73 @@ check_ollama_bin() {
     echo -e "${RED}❌ No se encontró ollama en ${OLLAMA_BIN}${NC}"
     echo -e "${YELLOW}➡️  Ejecuta: which ollama y actualiza OLLAMA_BIN en este script${NC}"
     exit 1
+  fi
+}
+
+postgres_start() {
+  echo -e "${GREEN}🐘 Iniciando PostgreSQL...${NC}"
+  
+  # Verificar si PostgreSQL ya está corriendo
+  if pgrep -f "postgres" >/dev/null; then
+    echo -e "${YELLOW}✅ PostgreSQL ya está corriendo${NC}"
+    return 0
+  fi
+  
+  # Intentar iniciar con systemctl (si está disponible)
+  if command -v systemctl >/dev/null 2>&1; then
+    sudo systemctl start "$POSTGRES_SERVICE" 2>/dev/null || {
+      echo -e "${YELLOW}⚠️  systemctl falló, intentando con service...${NC}"
+      sudo service "$POSTGRES_SERVICE" start 2>/dev/null || {
+        echo -e "${RED}❌ No se pudo iniciar PostgreSQL${NC}"
+        echo -e "${YELLOW}➡️  Instala PostgreSQL: sudo apt install postgresql postgresql-contrib${NC}"
+        exit 1
+      }
+    }
+  else
+    # Fallback: usar service
+    sudo service "$POSTGRES_SERVICE" start 2>/dev/null || {
+      echo -e "${RED}❌ No se pudo iniciar PostgreSQL${NC}"
+      echo -e "${YELLOW}➡️  Instala PostgreSQL: sudo apt install postgresql postgresql-contrib${NC}"
+      exit 1
+    }
+  fi
+  
+  # Esperar a que PostgreSQL esté listo
+  echo -e "${BLUE}⏳ Esperando a que PostgreSQL esté listo...${NC}"
+  for i in {1..30}; do
+    if pg_isready -h localhost -p "$POSTGRES_PORT" >/dev/null 2>&1; then
+      echo -e "${GREEN}✅ PostgreSQL está listo${NC}"
+      return 0
+    fi
+    sleep 1
+  done
+  
+  echo -e "${RED}❌ PostgreSQL no respondió en 30 segundos${NC}"
+  exit 1
+}
+
+postgres_stop() {
+  echo -e "${YELLOW}🛑 Deteniendo PostgreSQL...${NC}"
+  
+  if command -v systemctl >/dev/null 2>&1; then
+    sudo systemctl stop "$POSTGRES_SERVICE" 2>/dev/null || true
+  else
+    sudo service "$POSTGRES_SERVICE" stop 2>/dev/null || true
+  fi
+}
+
+postgres_status() {
+  echo -e "${BLUE}🐘 Estado de PostgreSQL:${NC}"
+  
+  if pgrep -f "postgres" >/dev/null; then
+    echo -e "${GREEN}✅ PostgreSQL está corriendo${NC}"
+    if pg_isready -h localhost -p "$POSTGRES_PORT" >/dev/null 2>&1; then
+      echo -e "${GREEN}✅ PostgreSQL está listo para conexiones${NC}"
+    else
+      echo -e "${YELLOW}⚠️  PostgreSQL está corriendo pero no responde${NC}"
+    fi
+  else
+    echo -e "${RED}❌ PostgreSQL no está corriendo${NC}"
   fi
 }
 
@@ -171,6 +246,7 @@ check_directory
 
 case "$1" in
   start)
+    postgres_start
     tunnel_start
     ollama_start
     echo -e "${GREEN}🚀 Iniciando '${APP_NAME}'...${NC}"
@@ -185,12 +261,15 @@ case "$1" in
     pm2 stop "$APP_NAME" || true
     tunnel_stop
     ollama_stop
+    postgres_stop
     pm2 save
     echo -e "${GREEN}✅ Servicios detenidos${NC}"
     pm2 status
     ;;
 
   restart)
+    postgres_stop
+    postgres_start
     tunnel_restart
     ollama_restart
     echo -e "${YELLOW}🔄 Reiniciando '${APP_NAME}'...${NC}"
@@ -321,6 +400,18 @@ case "$1" in
   ollama-logs)
     echo -e "${BLUE}📜 Logs del modelo ${OLLAMA_MODEL}:${NC}"
     pm2 logs "$OLLAMA_MODEL_NAME" --lines 50 --raw
+    ;;
+
+  postgres-start)
+    postgres_start
+    ;;
+
+  postgres-stop)
+    postgres_stop
+    ;;
+
+  postgres-status)
+    postgres_status
     ;;
 
   *)

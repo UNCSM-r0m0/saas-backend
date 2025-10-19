@@ -353,3 +353,7 @@ Probar endpoints:
 ## npm run prisma:studio
 
 ## dbeaver &
+
+## sudo service postgresql start
+
+## sudo service postgresql status
