@@ -118,12 +118,18 @@ export class ChatService {
             : [];
 
         // 6. Determinar modelo a usar (por defecto: ollama)
-        const selectedModel = dto.model || 'ollama';
+        const selectedModel = (dto.model || 'ollama').trim();
 
         // 7. Generar respuesta del modelo
         let aiResponse = '';
         let tokensUsed = 0;
         let modelUsed = '';
+
+        // 7.a. Modelos premium (requieren suscripción PREMIUM)
+        const isPremiumRequested = ['gemini', 'openai', 'deepseek'].includes(selectedModel);
+        if (isPremiumRequested && tier !== SubscriptionTier.PREMIUM) {
+            throw new ForbiddenException('Este modelo es Premium. Actualiza tu suscripción para usarlo.');
+        }
 
         if (selectedModel === 'gemini') {
             const geminiResponse = await this.geminiService.generateResponse(dto.content, {
@@ -155,7 +161,7 @@ export class ChatService {
             tokensUsed = deepseekResponse.tokensUsed;
             modelUsed = deepseekResponse.model;
         } else {
-            // Ollama por defecto
+            // 7.d. Ollama (modelo local). Permite especificar modelo concreto.
             const ollamaMessages = [
                 ...history.map((m) => ({
                     role: m.role as 'user' | 'assistant' | 'system',
@@ -163,13 +169,23 @@ export class ChatService {
                 })),
                 { role: 'user' as const, content: dto.content },
             ];
+            // Determinar modelo específico de Ollama si viene prefijado o directo
+            let ollamaModel: string | undefined = selectedModel;
+            if (selectedModel.startsWith('ollama-')) {
+                ollamaModel = selectedModel.replace('ollama-', '');
+            } else if (selectedModel === 'ollama') {
+                // No especificar para usar el modelo por defecto configurado en OllamaService
+                ollamaModel = undefined;
+            }
+
             const ollamaResponse = await this.ollamaService.generate(
                 ollamaMessages,
                 limits.maxTokensPerMessage,
+                ollamaModel,
             );
             aiResponse = ollamaResponse.content;
             tokensUsed = ollamaResponse.tokensUsed;
-            modelUsed = 'ollama';
+            modelUsed = ollamaModel || 'ollama-default';
         }
 
         // 8. Guardar respuesta del asistente (solo si es registrado)

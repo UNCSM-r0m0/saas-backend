@@ -154,10 +154,11 @@ export class OllamaService {
     async generate(
         messages: OllamaMessage[],
         maxTokens?: number,
+        model?: string,
     ): Promise<{ content: string; tokensUsed: number }> {
         try {
             const payload: OllamaGenerateRequest = {
-                model: this.defaultModel,
+                model: model || this.defaultModel,
                 messages,
                 stream: false,
                 options: {
@@ -168,7 +169,7 @@ export class OllamaService {
             };
 
             this.logger.log(
-                `Generando respuesta con modelo ${this.defaultModel} (max_tokens: ${maxTokens})`,
+                `Generando respuesta con modelo ${model || this.defaultModel} (max_tokens: ${maxTokens})`,
             );
 
             const response = await fetch(`${this.ollamaUrl}/api/chat`, {
