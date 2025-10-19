@@ -71,6 +71,14 @@ export class UsersService {
     return user ? new User(user) : null;
   }
 
+  async findById(id: string): Promise<User | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    return user ? new User(user) : null;
+  }
+
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     await this.findOne(id); // Verifica que exista
 

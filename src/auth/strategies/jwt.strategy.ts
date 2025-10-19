@@ -1,7 +1,8 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { UsersService } from '../../users/users.service';
 
 export interface JwtPayload {
     sub: string;
@@ -24,7 +25,10 @@ const cookieExtractor = (req: any) => {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-    constructor(private configService: ConfigService) {
+    constructor(
+        private configService: ConfigService,
+        private usersService: UsersService,
+    ) {
         const secret = configService.get<string>('JWT_SECRET');
         if (!secret) {
             throw new Error('JWT_SECRET is not defined in environment variables');
@@ -41,13 +45,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     async validate(payload: JwtPayload) {
         console.log('🔍 JwtStrategy.validate: Payload recibido:', payload);
-        const user = {
-            id: payload.sub,
-            email: payload.email,
-            role: payload.role,
+
+        // Verificar que el usuario existe en la base de datos
+        const user = await this.usersService.findById(payload.sub);
+        if (!user) {
+            console.log('🔍 JwtStrategy.validate: ❌ Usuario no encontrado en BD:', payload.sub);
+            throw new UnauthorizedException('Usuario no encontrado');
+        }
+
+        if (!user.isActive) {
+            console.log('🔍 JwtStrategy.validate: ❌ Usuario inactivo:', payload.sub);
+            throw new UnauthorizedException('Usuario inactivo');
+        }
+
+        console.log('🔍 JwtStrategy.validate: ✅ Usuario válido:', user.email);
+        return {
+            id: user.id,
+            email: user.email,
+            role: user.role,
         };
-        console.log('🔍 JwtStrategy.validate: Usuario validado:', user);
-        return user;
     }
 }
 
