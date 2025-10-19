@@ -222,9 +222,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     ) {
         const broadcast = this.chatBroadcast.get(chatId) ?? true;
         if (broadcast) {
+            const room = this.server.sockets.adapter.rooms.get(chatId);
+            const clientCount = room ? room.size : 0;
+            this.logger.debug(`📡 Emitiendo ${event} a sala ${chatId} (${clientCount} clientes)`);
             this.server.to(chatId).emit(event, payload);
         } else {
             // Siempre garantizamos que el emisor lo reciba
+            this.logger.debug(`📡 Emitiendo ${event} directamente a cliente ${client.id}`);
             client.emit(event, payload);
         }
     }
@@ -353,6 +357,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                     timestamp: new Date().toISOString(),
                 };
                 this.emitChat(client, chatId, 'responseChunk', payload);
+                this.logger.debug(`📤 Enviando chunk ${seq} a sala ${chatId}: ${payload.content.substring(0, 50)}...`);
                 buffer = '';
             };
 
@@ -495,6 +500,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                 timestamp: new Date().toISOString(),
             });
 
+            this.logger.log(`📤 Enviando responseEnd a sala ${chatId} (${chunkCount} chunks)`);
             this.logger.log(`Respuesta completada para ${chatId} (${chunkCount} chunks)`);
             if (release) release();
         } catch (error) {
