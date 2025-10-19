@@ -104,9 +104,9 @@ export class ChatController {
     }
 
     // ---- Chat sessions (placed before dynamic ":id" to avoid collisions) ----
-    @Post('sessions-dup')
+    @Post('sessions')
     @UseGuards(JwtAuthGuard)
-    async createChatSession_dup(
+    async createChatSession(
         @Request() req: any,
         @Body() body: { title?: string }
     ) {
@@ -115,13 +115,13 @@ export class ChatController {
         return { success: true, data: chat };
     }
 
-    @Get('sessions-dup')
+    @Get('sessions')
     @UseGuards(JwtAuthGuard)
     @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
     @Header('Pragma', 'no-cache')
     @Header('Expires', '0')
     @Header('Vary', 'Cookie, Authorization, Origin')
-    async listChatSessions_dup(@Request() req: any) {
+    async listChatSessions(@Request() req: any) {
         const userId = getUserIdFromReq(req)!;
         console.log(`🔍 [GET /chat/sessions] Iniciando para userId: ${userId}`);
 
@@ -143,9 +143,9 @@ export class ChatController {
         }
     }
 
-    @Patch('sessions-dup/:id')
+    @Patch('sessions/:id')
     @UseGuards(JwtAuthGuard)
-    async renameChatSession_dup(
+    async renameChatSession(
         @Param('id') chatId: string,
         @Body() body: { title: string },
         @Request() req: any
@@ -155,9 +155,9 @@ export class ChatController {
         return { success: true, message: 'Chat renombrado exitosamente' };
     }
 
-    @Delete('sessions-dup/:id')
+    @Delete('sessions/:id')
     @UseGuards(JwtAuthGuard)
-    async deleteChatSession_dup(
+    async deleteChatSession(
         @Param('id') chatId: string,
         @Request() req: any
     ) {
@@ -166,13 +166,13 @@ export class ChatController {
         return { success: true, message: 'Chat eliminado exitosamente' };
     }
 
-    @Get('sessions-dup/:id/messages')
+    @Get('sessions/:id/messages')
     @UseGuards(JwtAuthGuard)
     @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
     @Header('Pragma', 'no-cache')
     @Header('Expires', '0')
     @Header('Vary', 'Cookie, Authorization, Origin')
-    async getChatSessionMessages_dup(
+    async getChatSessionMessages(
         @Param('id') chatId: string,
         @Request() req: any,
         @Query('limit') limit?: string,
@@ -191,7 +191,7 @@ export class ChatController {
     /**
      * Obtener un chat especÃ­fico con sus mensajes
      */
-    @Get(':id([0-9a-fA-F\-]{36})')
+    @Get(':id')
     @UseGuards(JwtAuthGuard)
     @ApiOperation({
         summary: 'Obtener un chat especÃ­fico',
@@ -521,84 +521,7 @@ export class ChatController {
     }
 
     // ========== ENDPOINTS REST PARA GESTIÓN DE CHATS ==========
-
-    @Post('sessions')
-    @UseGuards(JwtAuthGuard)
-    async createChatSession(
-        @Request() req: any,
-        @Body() body: { title?: string }
-    ) {
-        const userId = getUserIdFromReq(req)!;
-        const chat = await this.chatService.createChat(userId, body.title);
-        return { success: true, data: chat };
-    }
-
-    @Get('sessions')
-    @UseGuards(JwtAuthGuard)
-    @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
-    @Header('Pragma', 'no-cache')
-    @Header('Expires', '0')
-    @Header('Vary', 'Cookie, Authorization, Origin')
-    async listChatSessions(@Request() req: any) {
-        const userId = getUserIdFromReq(req)!;
-        console.log(`🔍 [GET /chat/sessions] Iniciando para userId: ${userId}`);
-
-        try {
-            const chats = await this.chatService.listChats(userId);
-            console.log(`📊 [GET /chat/sessions] Chats encontrados: ${Array.isArray(chats) ? chats.length : 'n/a'}`);
-            console.log(`📋 [GET /chat/sessions] Datos de chats:`, chats);
-
-            const response = { success: true, data: chats };
-            console.log(`✅ [GET /chat/sessions] Respuesta enviada:`, response);
-            return response;
-        } catch (error) {
-            console.error(`❌ [GET /chat/sessions] Error:`, error);
-            return {
-                success: false,
-                message: error.message || 'Error al obtener chats',
-                error: error.toString()
-            };
-        }
-    }
-
-    @Patch('sessions/:id')
-    @UseGuards(JwtAuthGuard)
-    async renameChatSession(
-        @Param('id') chatId: string,
-        @Body() body: { title: string },
-        @Request() req: any
-    ) {
-        const userId = getUserIdFromReq(req)!;
-        await this.chatService.renameChat(chatId, body.title, userId);
-        return { success: true, message: 'Chat renombrado exitosamente' };
-    }
-
-    @Delete('sessions/:id')
-    @UseGuards(JwtAuthGuard)
-    async deleteChatSession(
-        @Param('id') chatId: string,
-        @Request() req: any
-    ) {
-        const userId = getUserIdFromReq(req)!;
-        await this.chatService.deleteChat(chatId, userId);
-        return { success: true, message: 'Chat eliminado exitosamente' };
-    }
-
-    @Get('sessions/:id/messages')
-    @UseGuards(JwtAuthGuard)
-    @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
-    @Header('Pragma', 'no-cache')
-    @Header('Expires', '0')
-    @Header('Vary', 'Cookie, Authorization, Origin')
-    async getChatSessionMessages(
-        @Param('id') chatId: string,
-        @Request() req: any,
-        @Query('limit') limit?: string,
-        @Query('cursor') cursor?: string
-    ): Promise<any> {
-        const messages = await this.chatService.getChatHistory(chatId);
-        return { success: true, data: messages };
-    }
+    // (Bloque duplicado movido más arriba para evitar colisiones con ':id')
 }
 
 
