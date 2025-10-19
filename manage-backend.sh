@@ -129,19 +129,18 @@ tunnel_restart() {
 ollama_start() {
   check_ollama_bin
   
-  # Iniciar Ollama serve
-  if ! pm2 describe "$OLLAMA_SERVE_NAME" >/dev/null 2>&1; then
-    echo -e "${GREEN}🚀 Iniciando Ollama serve...${NC}"
-    pm2 start "$OLLAMA_BIN" --name "$OLLAMA_SERVE_NAME" -- serve
+  # Verificar si Ollama serve ya está corriendo
+  if ! pgrep -f "ollama serve" >/dev/null; then
+    echo -e "${GREEN}🚀 Iniciando Ollama serve en background...${NC}"
+    nohup "$OLLAMA_BIN" serve > /dev/null 2>&1 &
     sleep 3  # Esperar a que el servidor esté listo
   else
-    echo -e "${YELLOW}🔄 Arrancando proceso existente de Ollama serve...${NC}"
-    pm2 start "$OLLAMA_SERVE_NAME"
+    echo -e "${YELLOW}✅ Ollama serve ya está corriendo${NC}"
   fi
   
-  # Iniciar el modelo específico
+  # Iniciar el modelo específico en PM2
   if ! pm2 describe "$OLLAMA_MODEL_NAME" >/dev/null 2>&1; then
-    echo -e "${GREEN}🤖 Iniciando modelo ${OLLAMA_MODEL}...${NC}"
+    echo -e "${GREEN}🤖 Iniciando modelo ${OLLAMA_MODEL} en PM2...${NC}"
     pm2 start "$OLLAMA_BIN" --name "$OLLAMA_MODEL_NAME" -- run "$OLLAMA_MODEL"
   else
     echo -e "${YELLOW}🔄 Arrancando proceso existente del modelo...${NC}"
@@ -152,15 +151,18 @@ ollama_start() {
 ollama_stop() {
   echo -e "${YELLOW}🛑 Deteniendo Ollama...${NC}"
   pm2 stop "$OLLAMA_MODEL_NAME" 2>/dev/null || true
+  pm2 delete "$OLLAMA_MODEL_NAME" 2>/dev/null || true
   pm2 stop "$OLLAMA_SERVE_NAME" 2>/dev/null || true
+  pm2 delete "$OLLAMA_SERVE_NAME" 2>/dev/null || true
+  pkill -f "ollama serve" 2>/dev/null || true
 }
 
 ollama_restart() {
   check_ollama_bin
   echo -e "${YELLOW}🔄 Reiniciando Ollama...${NC}"
-  pm2 restart "$OLLAMA_SERVE_NAME" 2>/dev/null || ollama_start
+  ollama_stop
   sleep 2
-  pm2 restart "$OLLAMA_MODEL_NAME" 2>/dev/null || ollama_start
+  ollama_start
 }
 
 # --- Flow principal ---
@@ -317,9 +319,7 @@ case "$1" in
     ;;
 
   ollama-logs)
-    echo -e "${BLUE}📜 Logs de Ollama serve:${NC}"
-    pm2 logs "$OLLAMA_SERVE_NAME" --lines 50 --raw
-    echo -e "\n${BLUE}📜 Logs del modelo ${OLLAMA_MODEL}:${NC}"
+    echo -e "${BLUE}📜 Logs del modelo ${OLLAMA_MODEL}:${NC}"
     pm2 logs "$OLLAMA_MODEL_NAME" --lines 50 --raw
     ;;
 
