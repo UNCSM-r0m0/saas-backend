@@ -21,12 +21,16 @@ export class OpenAIService {
         this.llmStudioModel = this.configService.get<string>('LLM_STUDIO_MODEL', 'openai/gpt-oss-20b');
 
         if (llmStudioUrl) {
+            // Timeout de 10 minutos para modelos locales que pueden tardar mucho
+            const timeout = 10 * 60 * 1000; // 10 minutos en milisegundos
             this.llmStudioClient = new OpenAI({
                 apiKey: 'local-api-key', // LLM Studio no requiere API key real
                 baseURL: `${llmStudioUrl}/v1`,
+                timeout: timeout,
+                maxRetries: 0, // No reintentar para modelos locales
             });
             this.useLLMStudio = true;
-            this.logger.log(`✅ LLM Studio configurado: ${llmStudioUrl} con modelo ${this.llmStudioModel}`);
+            this.logger.log(`✅ LLM Studio configurado: ${llmStudioUrl} con modelo ${this.llmStudioModel}, timeout: ${timeout / 1000}s`);
         } else {
             // Fallback a OpenAI cloud
             const apiKey = this.configService.get<string>('OPENAI_API_KEY');
@@ -111,6 +115,9 @@ export class OpenAIService {
             const stats = this.queueService.getStats();
             this.logger.log(`📊 Queue stats: ${stats.activeRequests}/${stats.maxConcurrent} activos, ${stats.queuedRequests} en cola (${stats.utilization}% uso)`);
 
+            this.logger.log(`🔄 Iniciando llamada a LLM Studio/OpenAI con modelo: ${modelToUse}, max_tokens: ${maxTokens}`);
+            const startTime = Date.now();
+
             const completion = await client.chat.completions.create({
                 model: modelToUse,
                 messages: messages,
@@ -118,10 +125,13 @@ export class OpenAIService {
                 temperature: temperature,
             });
 
+            const elapsedTime = Date.now() - startTime;
+            this.logger.log(`⏱️ Llamada completada en ${elapsedTime}ms (${(elapsedTime / 1000).toFixed(2)}s)`);
+
             const response = completion.choices[0]?.message?.content || '';
             const tokensUsed = completion.usage?.total_tokens || 0;
 
-            this.logger.log(`✅ Respuesta generada, tokens: ${tokensUsed}, modelo: ${modelToUse}`);
+            this.logger.log(`✅ Respuesta generada, tokens: ${tokensUsed}, modelo: ${modelToUse}, longitud: ${response.length} caracteres`);
 
             return {
                 response,
@@ -130,7 +140,12 @@ export class OpenAIService {
             };
         } catch (error) {
             const errorMessage = error instanceof OpenAI.APIError ? error.message : 'Unknown error';
-            this.logger.warn(`❌ Error en generación: ${errorMessage}`);
+            const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+            this.logger.error(`❌ Error en generación: ${errorMessage}`);
+            this.logger.error(`❌ Stack trace: ${errorStack}`);
+            if (error instanceof OpenAI.APIError) {
+                this.logger.error(`❌ Status: ${error.status}, Code: ${error.code}, Type: ${error.type}`);
+            }
             throw error;
         }
     }
