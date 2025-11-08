@@ -221,11 +221,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         payload: any,
     ) {
         const broadcast = this.chatBroadcast.get(chatId) ?? true;
+
+        // Eventos críticos siempre se envían directamente al cliente para evitar problemas de timing
+        const criticalEvents = ['responseStart', 'responseEnd', 'error'];
+        const isCritical = criticalEvents.includes(event);
+
         if (broadcast) {
             const room = (this.server as any).adapter?.rooms?.get(chatId);
             const clientCount = room ? room.size : 0;
             this.logger.log(`📡 [EMIT] ${event} → sala ${chatId} (${clientCount} clientes)`);
             this.server.to(chatId).emit(event, payload);
+
+            // Si es un evento crítico, también enviarlo directamente al cliente para garantizar recepción
+            if (isCritical) {
+                this.logger.log(`📡 [EMIT] ${event} → cliente directo ${client.id} (backup crítico)`);
+                client.emit(event, payload);
+            }
         } else {
             // Siempre garantizamos que el emisor lo reciba
             this.logger.log(`📡 [EMIT] ${event} → cliente ${client.id}`);
@@ -259,6 +270,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
             // 2) Únete a la sala del chat (incluye emisor)
             this.ensureJoined(client, chatId);
+
+            // 2.5) Pequeño delay para asegurar que el frontend esté suscrito a los eventos
+            // Esto soluciona el problema donde el frontend se queda "pensando" en la primera conexión
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             // 3) Generar stream IA (con control de concurrencia)
             const model = data.model || 'deepseek-r1:7b';
