@@ -145,17 +145,8 @@ export class ModelsController {
                 ...(openaiInfo.provider === 'LLM Studio Local' && openaiInfo.queueStats && {
                     queueStats: openaiInfo.queueStats
                 })
-            },
-            {
-                id: 'deepseek',
-                name: 'DeepSeek Chat',
-                provider: 'DeepSeek',
-                available: this.deepseekService.isAvailable(),
-                isPremium: true,
-                features: ['text-generation', 'cost-effective', 'high-performance'],
-                description: 'Modelo de DeepSeek con excelente relación precio-calidad',
-                defaultModel: 'deepseek-chat'
             }
+            // DeepSeek removido de la lista pública de modelos disponibles
         ];
 
         return { models: allModels };
