@@ -393,8 +393,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                     const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
                     stream = await this.geminiService.generateStreamingResponse(prompt);
                 } else if (model === 'openai') {
-                    const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-                    stream = await this.openaiService.generateStreamingResponse(prompt, model);
+                    // Convertir historial a formato OpenAI
+                    const openaiMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = messages.map(m => ({
+                        role: m.role as 'user' | 'assistant' | 'system',
+                        content: m.content,
+                    }));
+                    stream = await this.openaiService.generateStreamingResponse(openaiMessages, { model });
                 } else if (model === 'deepseek') {
                     const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
                     const response = await this.deepseekService.generateResponse(prompt, model);

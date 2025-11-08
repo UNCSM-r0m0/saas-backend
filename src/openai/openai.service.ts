@@ -21,8 +21,8 @@ export class OpenAIService {
         this.llmStudioModel = this.configService.get<string>('LLM_STUDIO_MODEL', 'openai/gpt-oss-20b');
 
         if (llmStudioUrl) {
-            // Timeout de 10 minutos para modelos locales que pueden tardar mucho
-            const timeout = 10 * 60 * 1000; // 10 minutos en milisegundos
+            // Timeout de 20 minutos para modelos locales que pueden tardar mucho (especialmente para streaming)
+            const timeout = 20 * 60 * 1000; // 20 minutos en milisegundos
             this.llmStudioClient = new OpenAI({
                 apiKey: 'local-api-key', // LLM Studio no requiere API key real
                 baseURL: `${llmStudioUrl}/v1`,
@@ -150,12 +150,15 @@ export class OpenAIService {
         }
     }
 
-    async generateStreamingResponse(prompt: string, options?: {
-        maxTokens?: number;
-        temperature?: number;
-        systemPrompt?: string;
-        model?: string;
-    }): Promise<AsyncIterable<string>> {
+    async generateStreamingResponse(
+        promptOrMessages: string | OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        options?: {
+            maxTokens?: number;
+            temperature?: number;
+            systemPrompt?: string;
+            model?: string;
+        }
+    ): Promise<AsyncIterable<string>> {
         const client = this.useLLMStudio ? this.llmStudioClient : this.openai;
 
         if (!client) {
@@ -165,15 +168,55 @@ export class OpenAIService {
         // Si es modelo local, usar cola para evitar saturación
         if (this.useLLMStudio) {
             this.logger.log('🎯 Usando LLM Studio streaming con cola de concurrencia');
-            return this.queueService.execute(() => this._generateStreamingResponse(prompt, options, client));
+            return this.queueService.execute(() => this._generateStreamingResponse(promptOrMessages, options, client));
         }
 
         // Si es OpenAI cloud, ejecutar directamente
-        return this._generateStreamingResponse(prompt, options, client);
+        return this._generateStreamingResponse(promptOrMessages, options, client);
+    }
+
+    /**
+     * Limita el historial de mensajes para evitar exceder el contexto del modelo
+     * Para LLM Studio con contexto de 4096 tokens, mantenemos solo los últimos mensajes
+     */
+    private limitHistoryForLLMStudio(
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        maxTokens: number = 2000
+    ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+        if (!this.useLLMStudio) return messages;
+
+        // Estimación simple: ~4 caracteres por token
+        const maxChars = maxTokens * 4;
+        let totalChars = 0;
+        const limited: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+
+        // Recorrer desde el final (mensajes más recientes primero)
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+            const msgChars = content.length;
+
+            if (totalChars + msgChars > maxChars && limited.length > 0) {
+                // Si agregar este mensaje excedería el límite, parar
+                break;
+            }
+
+            limited.unshift(msg); // Agregar al inicio para mantener el orden
+            totalChars += msgChars;
+        }
+
+        if (limited.length < messages.length) {
+            this.logger.log(
+                `📉 Historial limitado: ${messages.length} → ${limited.length} mensajes ` +
+                `(${totalChars} chars, límite: ${maxChars} chars)`
+            );
+        }
+
+        return limited;
     }
 
     private async _generateStreamingResponse(
-        prompt: string,
+        promptOrMessages: string | OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         options: {
             maxTokens?: number;
             temperature?: number;
@@ -192,23 +235,44 @@ export class OpenAIService {
 
             const modelToUse = this.useLLMStudio ? this.llmStudioModel : (model || 'gpt-4o-mini');
 
-            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+            let messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
-            if (systemPrompt) {
+            // Si es un string, convertirlo a array de mensajes
+            if (typeof promptOrMessages === 'string') {
+                if (systemPrompt) {
+                    messages.push({
+                        role: 'system',
+                        content: systemPrompt,
+                    });
+                }
                 messages.push({
-                    role: 'system',
-                    content: systemPrompt,
+                    role: 'user',
+                    content: promptOrMessages,
                 });
+            } else {
+                // Si es un array de mensajes, usarlo directamente
+                messages = promptOrMessages;
+                // Agregar systemPrompt si existe y no está ya en los mensajes
+                if (systemPrompt && !messages.some(m => m.role === 'system')) {
+                    messages.unshift({
+                        role: 'system',
+                        content: systemPrompt,
+                    });
+                }
             }
 
-            messages.push({
-                role: 'user',
-                content: prompt,
-            });
+            // Limitar historial para LLM Studio para evitar exceder el contexto
+            messages = this.limitHistoryForLLMStudio(messages, 2000);
 
             const stats = this.queueService.getStats();
             this.logger.log(`📊 Queue stats (streaming): ${stats.activeRequests}/${stats.maxConcurrent} activos, ${stats.queuedRequests} en cola`);
 
+            this.logger.log(
+                `🔄 Iniciando streaming con modelo: ${modelToUse}, ` +
+                `${messages.length} mensajes, max_tokens: ${maxTokens}`
+            );
+
+            // El timeout ya está configurado en el constructor del cliente (20 minutos para LLM Studio)
             const stream = await client.chat.completions.create({
                 model: modelToUse,
                 messages: messages,
