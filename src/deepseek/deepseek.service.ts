@@ -78,12 +78,42 @@ export class DeepSeekService {
             this.logger.log(`DeepSeek response generated (model: ${modelUsed}, tokens: ${tokensUsed})`);
             return { response: aiResponse, tokensUsed, model: modelUsed };
         } catch (error) {
-            // Log más limpio - solo el mensaje de error
-            const errorMessage = error instanceof OpenAI.APIError ? error.message : 'Unknown error';
-            this.logger.warn(`DeepSeek API error: ${errorMessage}`);
+            // Manejo específico de errores de DeepSeek
+            if (error instanceof OpenAI.APIError) {
+                const errorMessage = error.message;
+                const statusCode = error.status;
 
-            // Re-lanzar el error para que el filtro global lo maneje
-            throw error;
+                this.logger.warn(`DeepSeek API error: ${statusCode} ${errorMessage}`);
+
+                // Error 402: Insufficient Balance - Saldo insuficiente
+                if (statusCode === 402 || errorMessage.includes('Insufficient Balance')) {
+                    throw new HttpException(
+                        'La cuenta de DeepSeek no tiene saldo suficiente. Por favor, recarga tu cuenta en DeepSeek o usa otro modelo.',
+                        HttpStatus.PAYMENT_REQUIRED,
+                    );
+                }
+
+                // Error 429: Rate Limit
+                if (statusCode === 429 || errorMessage.includes('rate limit')) {
+                    throw new HttpException(
+                        'Se ha alcanzado el límite de solicitudes de DeepSeek. Por favor, intenta más tarde.',
+                        HttpStatus.TOO_MANY_REQUESTS,
+                    );
+                }
+
+                // Otros errores de API
+                throw new HttpException(
+                    `Error de DeepSeek API: ${errorMessage}`,
+                    statusCode || HttpStatus.SERVICE_UNAVAILABLE,
+                );
+            }
+
+            // Error desconocido
+            this.logger.error('DeepSeek unknown error:', error);
+            throw new HttpException(
+                'Error al comunicarse con DeepSeek. Por favor, intenta más tarde o usa otro modelo.',
+                HttpStatus.SERVICE_UNAVAILABLE,
+            );
         }
     }
 
