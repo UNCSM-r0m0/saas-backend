@@ -141,15 +141,23 @@ export class ChatService {
             tokensUsed = geminiResponse.tokensUsed;
             modelUsed = geminiResponse.model;
         } else if (selectedModel === 'openai') {
-            const openaiResponse = await this.openaiService.generateResponse(dto.content, {
-                maxTokens: limits.maxTokensPerMessage,
-                temperature: 0.7,
-                systemPrompt: 'Eres un asistente de IA útil y amigable.',
-                model: 'gpt-4o-mini',
-            });
-            aiResponse = openaiResponse.response;
-            tokensUsed = openaiResponse.tokensUsed;
-            modelUsed = openaiResponse.model;
+            // No pasar 'model' para que use el modelo configurado dinámicamente (LLM Studio o OpenAI Cloud)
+            this.logger.log(`🤖 Generando respuesta con OpenAI/LLM Studio para chat ${chatId}`);
+            try {
+                const openaiResponse = await this.openaiService.generateResponse(dto.content, {
+                    maxTokens: limits.maxTokensPerMessage,
+                    temperature: 0.7,
+                    systemPrompt: 'Eres un asistente de IA útil y amigable.',
+                    // model se detecta automáticamente: LLM Studio si está configurado, sino OpenAI Cloud
+                });
+                aiResponse = openaiResponse.response;
+                tokensUsed = openaiResponse.tokensUsed;
+                modelUsed = openaiResponse.model;
+                this.logger.log(`✅ Respuesta OpenAI/LLM Studio generada: ${aiResponse.length} caracteres, ${tokensUsed} tokens`);
+            } catch (error) {
+                this.logger.error(`❌ Error generando respuesta OpenAI/LLM Studio:`, error);
+                throw error;
+            }
         } else if (selectedModel === 'deepseek') {
             const deepseekResponse = await this.deepseekService.generateResponse(dto.content, {
                 maxTokens: limits.maxTokensPerMessage,
@@ -222,40 +230,22 @@ export class ChatService {
         );
 
         // 10. Retornar respuesta en formato esperado por el frontend
-        const updatedChat = {
-            id: chatId !== 'anonymous' ? chatId : 'temp-chat-id',
-            title: chat?.title || 'Nueva conversación',
-            model: modelUsed,
-            messages: [
-                {
-                    id: userMessage?.id || 'temp-user-id',
-                    role: 'user',
-                    content: dto.content,
-                    createdAt: new Date(),
-                },
-                {
-                    id: assistantMessage?.id || 'temp-assistant-id',
-                    role: 'assistant',
-                    content: aiResponse,
-                    createdAt: new Date(),
-                    tokensUsed,
-                },
-            ],
-        };
-
-        return {
+        const response = {
             conversationId: chatId !== 'anonymous' ? chatId : 'temp-chat-id',
             message: {
                 id: assistantMessage?.id || 'temp-assistant-id',
                 role: 'assistant',
                 content: aiResponse,
-                createdAt: new Date(),
+                createdAt: assistantMessage?.createdAt || new Date(),
                 tokensUsed,
             },
             remaining: canSend.remaining - 1,
             limit: canSend.limit,
             tier: tier,
         };
+
+        this.logger.log(`📤 Retornando respuesta para chat ${chatId}: ${aiResponse.length} caracteres, ${tokensUsed} tokens`);
+        return response;
     }
 
     /**

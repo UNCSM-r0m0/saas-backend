@@ -12,6 +12,7 @@ import {
     Req,
     Res,
     Header,
+    Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
@@ -39,6 +40,8 @@ import { getUserIdFromReq, getUserIdFromAuthHeader } from '../common/utils/auth.
 @ApiTags('chat')
 @Controller('chat')
 export class ChatController {
+    private readonly logger = new Logger(ChatController.name);
+
     constructor(
         private readonly chatService: ChatService,
         private readonly ollamaService: OllamaService,
@@ -314,12 +317,20 @@ export class ChatController {
     })
     @ApiBody({ type: SendMessageDto })
     async sendMessage(@Body() dto: SendMessageDto, @Req() req: any) {
-        // Obtener userId si estÃ¡ autenticado (opcional)
-        let userId = getUserIdFromReq(req);
-        if (!userId) {
-            userId = getUserIdFromAuthHeader(req.headers?.authorization);
+        try {
+            // Obtener userId si está autenticado (opcional)
+            let userId = getUserIdFromReq(req);
+            if (!userId) {
+                userId = getUserIdFromAuthHeader(req.headers?.authorization);
+            }
+            this.logger.log(`📨 [POST /chat/message] Procesando mensaje para usuario ${userId || 'anónimo'}, modelo: ${dto.model || 'ollama'}`);
+            const result = await this.chatService.sendMessage(dto, userId || undefined);
+            this.logger.log(`✅ [POST /chat/message] Respuesta enviada exitosamente: ${result.message.content.length} caracteres`);
+            return result;
+        } catch (error) {
+            this.logger.error(`❌ [POST /chat/message] Error procesando mensaje:`, error);
+            throw error;
         }
-        return this.chatService.sendMessage(dto, userId || undefined);
     }
 
     /**
