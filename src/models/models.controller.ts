@@ -114,6 +114,9 @@ export class ModelsController {
             };
         });
 
+        // Obtener información dinámica del modelo OpenAI/LLM Studio
+        const openaiInfo = this.openaiService.getModelInfo();
+
         const allModels = [
             ...ollamaModelConfigs,
             {
@@ -128,13 +131,20 @@ export class ModelsController {
             },
             {
                 id: 'openai',
-                name: 'GPT-4o Mini',
-                provider: 'OpenAI',
-                available: this.openaiService.isAvailable(),
+                name: openaiInfo.name === 'openai/gpt-oss-20b'
+                    ? 'GPT OSS 20B (LLM Studio)'
+                    : openaiInfo.name,
+                provider: openaiInfo.provider,
+                available: openaiInfo.available,
                 isPremium: true,
-                features: ['text-generation', 'streaming', 'chat-completions'],
-                description: 'Modelo de OpenAI optimizado para chat y conversaciones',
-                defaultModel: 'gpt-4o-mini'
+                features: openaiInfo.features,
+                description: openaiInfo.provider === 'LLM Studio Local'
+                    ? 'Modelo local GPT OSS 20B ejecutándose en LLM Studio con sistema de colas'
+                    : 'Modelo de OpenAI optimizado para chat y conversaciones',
+                defaultModel: openaiInfo.name,
+                ...(openaiInfo.provider === 'LLM Studio Local' && openaiInfo.queueStats && {
+                    queueStats: openaiInfo.queueStats
+                })
             },
             {
                 id: 'deepseek',

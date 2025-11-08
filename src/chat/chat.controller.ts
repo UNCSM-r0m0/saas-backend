@@ -49,6 +49,22 @@ export class ChatController {
         private readonly usageService: UsageService,
     ) { }
 
+    /**
+     * Obtener información del modelo OpenAI/LLM Studio (incluye stats de cola)
+     */
+    @Get('models/openai/info')
+    @Public()
+    @ApiOperation({
+        summary: 'Información del modelo OpenAI/LLM Studio',
+        description: 'Retorna información del modelo configurado y estadísticas de la cola de concurrencia',
+    })
+    async getOpenAIModelInfo() {
+        return {
+            success: true,
+            data: this.openaiService.getModelInfo(),
+        };
+    }
+
     // MÃ‰TODO ELIMINADO: getChats() - duplicado con listConversations()
     // Usar /api/chat/conversations en su lugar
 
