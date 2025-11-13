@@ -229,12 +229,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
         if (broadcast) {
             const room = (this.server as any).adapter?.rooms?.get(chatId);
             const clientCount = room ? room.size : 0;
+            const isClientInRoom = room?.has(client.id) ?? false;
+
             this.logger.log(`📡 [EMIT] ${event} → sala ${chatId} (${clientCount} clientes)`);
             this.server.to(chatId).emit(event, payload);
 
-            // Si es un evento crítico, también enviarlo directamente al cliente para garantizar recepción
-            if (isCritical) {
-                this.logger.log(`📡 [EMIT] ${event} → cliente directo ${client.id} (backup crítico)`);
+            // Si es un evento crítico y el cliente NO está en la sala, enviarlo directamente como backup
+            // Esto evita duplicados cuando el cliente ya está en la sala
+            if (isCritical && !isClientInRoom) {
+                this.logger.log(`📡 [EMIT] ${event} → cliente directo ${client.id} (backup crítico - no en sala)`);
                 client.emit(event, payload);
             }
         } else {
@@ -502,11 +505,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                 let errorMessage = 'Error generando respuesta. Intenta nuevamente.';
                 let errorCode = 'STREAM_ERROR';
 
-                // Detectar errores específicos
+                // Detectar errores específicos (el error puede estar anidado en cause.cause)
                 const errorString = streamError?.message || streamError?.toString() || '';
                 const errorCause = streamError?.cause?.message || streamError?.cause?.code || '';
+                const nestedCause = streamError?.cause?.cause?.code || streamError?.cause?.cause?.message || '';
+                const allErrorText = `${errorString} ${errorCause} ${nestedCause}`.toLowerCase();
 
-                if (errorCause.includes('ECONNREFUSED') || errorString.includes('ECONNREFUSED')) {
+                // Log para debugging
+                this.logger.debug(`Error detection - errorString: ${errorString}, errorCause: ${errorCause}, nestedCause: ${nestedCause}`);
+
+                if (allErrorText.includes('econnrefused')) {
                     if (model === 'openai') {
                         errorMessage = 'LLM Studio no está disponible. Verifica que el servidor esté ejecutándose en el puerto 1234.';
                         errorCode = 'LLM_STUDIO_UNAVAILABLE';
@@ -514,16 +522,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                         errorMessage = 'No se pudo conectar al servicio del modelo. Verifica la conexión.';
                         errorCode = 'CONNECTION_REFUSED';
                     }
-                } else if (errorCause.includes('ETIMEDOUT') || errorString.includes('timeout')) {
+                } else if (allErrorText.includes('etimedout') || allErrorText.includes('timeout')) {
                     errorMessage = 'El modelo está tardando demasiado en responder. Intenta nuevamente o usa otro modelo.';
                     errorCode = 'TIMEOUT_ERROR';
-                } else if (errorString.includes('insufficient_quota') || errorString.includes('quota')) {
+                } else if (allErrorText.includes('insufficient_quota') || allErrorText.includes('quota')) {
                     errorMessage = 'Se ha alcanzado el límite de uso del modelo. Intenta más tarde.';
                     errorCode = 'QUOTA_EXCEEDED';
-                } else if (errorString.includes('rate_limit') || errorCause.includes('429')) {
+                } else if (allErrorText.includes('rate_limit') || allErrorText.includes('429')) {
                     errorMessage = 'Demasiadas solicitudes. Por favor espera un momento e intenta nuevamente.';
                     errorCode = 'RATE_LIMIT';
-                } else if (errorString.includes('401') || errorString.includes('Unauthorized')) {
+                } else if (allErrorText.includes('401') || allErrorText.includes('unauthorized')) {
                     errorMessage = 'Error de autenticación con el servicio del modelo.';
                     errorCode = 'AUTH_ERROR';
                 }
