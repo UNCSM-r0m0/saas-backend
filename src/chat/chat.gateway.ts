@@ -361,7 +361,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
             const flush = (force = false) => {
                 if (!buffer || aborted) return;
                 const inBlock = openCodeBlock || openMathBlock;
-                if (inBlock && !force && buffer.length < 400) return;
+                // Reducir el umbral mínimo para bloques de código para que se muestren más rápido
+                if (inBlock && !force && buffer.length < 200) return;
                 const payload: any = {
                     chatId,
                     messageId,
@@ -373,11 +374,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                     timestamp: new Date().toISOString(),
                 };
                 this.emitChat(client, chatId, 'responseChunk', payload);
-                this.logger.log(`📤 [CHUNK ${seq}] Enviando a sala ${chatId}: ${payload.content.substring(0, 50)}...`);
+                this.logger.debug(`📤 [CHUNK ${seq}] Enviando a sala ${chatId}: ${payload.content.substring(0, 50)}...`);
                 buffer = '';
             };
 
-            const flushTimer = setInterval(() => flush(false), 60);
+            // Reducir el intervalo de flush a 30ms para mostrar chunks más rápido
+            const flushTimer = setInterval(() => flush(false), 30);
 
             const onDisconnect = (reason: string) => {
                 aborted = true;
@@ -461,7 +463,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                         fullContent += processed.response;
                         updateAssemblerState(processed.response);
                         chunkCount++;
-                        if (buffer.length >= 800) flush(true);
+                        // Flush más frecuentemente: cada 400 caracteres o cada 10 chunks
+                        if (buffer.length >= 400 || chunkCount % 10 === 0) {
+                            flush(true);
+                        }
                         if (chunkCount % 50 === 0) {
                             this.logger.log(`Chunk ${chunkCount} (batched) for ${chatId}`);
                         }
@@ -480,18 +485,55 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
                 }
 
                 this.logger.log(`Stream completed for ${chatId} (${chunkCount} chunks batched)`);
-            } catch (streamError) {
+            } catch (streamError: any) {
                 clearInterval(flushTimer);
                 client.off('disconnect', onDisconnect);
                 if (release) release();
                 this.activeStreams.delete(messageId);
                 this.logger.error(`Error in stream for ${chatId}:`, streamError);
 
+                // Enviar cualquier contenido parcial antes de reportar el error
+                if (buffer.length > 0 || fullContent.length > 0) {
+                    flush(true);
+                    this.logger.log(`Enviado contenido parcial (${fullContent.length} chars) antes del error`);
+                }
+
+                // Determinar mensaje de error más descriptivo
+                let errorMessage = 'Error generando respuesta. Intenta nuevamente.';
+                let errorCode = 'STREAM_ERROR';
+
+                // Detectar errores específicos
+                const errorString = streamError?.message || streamError?.toString() || '';
+                const errorCause = streamError?.cause?.message || streamError?.cause?.code || '';
+
+                if (errorCause.includes('ECONNREFUSED') || errorString.includes('ECONNREFUSED')) {
+                    if (model === 'openai') {
+                        errorMessage = 'LLM Studio no está disponible. Verifica que el servidor esté ejecutándose en el puerto 1234.';
+                        errorCode = 'LLM_STUDIO_UNAVAILABLE';
+                    } else {
+                        errorMessage = 'No se pudo conectar al servicio del modelo. Verifica la conexión.';
+                        errorCode = 'CONNECTION_REFUSED';
+                    }
+                } else if (errorCause.includes('ETIMEDOUT') || errorString.includes('timeout')) {
+                    errorMessage = 'El modelo está tardando demasiado en responder. Intenta nuevamente o usa otro modelo.';
+                    errorCode = 'TIMEOUT_ERROR';
+                } else if (errorString.includes('insufficient_quota') || errorString.includes('quota')) {
+                    errorMessage = 'Se ha alcanzado el límite de uso del modelo. Intenta más tarde.';
+                    errorCode = 'QUOTA_EXCEEDED';
+                } else if (errorString.includes('rate_limit') || errorCause.includes('429')) {
+                    errorMessage = 'Demasiadas solicitudes. Por favor espera un momento e intenta nuevamente.';
+                    errorCode = 'RATE_LIMIT';
+                } else if (errorString.includes('401') || errorString.includes('Unauthorized')) {
+                    errorMessage = 'Error de autenticación con el servicio del modelo.';
+                    errorCode = 'AUTH_ERROR';
+                }
+
                 this.emitChat(client, chatId, 'error', {
-                    message: 'Error generando respuesta. Intenta nuevamente.',
-                    code: 'STREAM_ERROR',
+                    message: errorMessage,
+                    code: errorCode,
                     chatId,
                     messageId,
+                    partialContent: fullContent.length > 0 ? fullContent : undefined,
                 });
                 return;
             }
