@@ -64,7 +64,8 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60 * 1000,
             domain: '.r0lm0.dev',  // comparte entre subdominios
         });
-        return res.json({ user: userData });
+        // Devolver también el token en el body para apps móviles
+        return res.json({ access_token, user: userData });
     }
 
     @UseGuards(ClientTypeGuard, JwtAuthGuard)

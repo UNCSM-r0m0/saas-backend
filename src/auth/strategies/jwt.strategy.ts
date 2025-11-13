@@ -14,6 +14,7 @@ export interface JwtPayload {
 const cookieExtractor = (req: any) => {
     let token = null;
     console.log('🔍 cookieExtractor: Req cookies:', req?.cookies);
+    console.log('🔍 cookieExtractor: Authorization header:', req?.headers?.authorization ? 'EXISTS' : 'NULL');
     if (req && req.cookies) {
         token = req.cookies['access_token'];
         console.log('🔍 cookieExtractor: Token extraído de cookie:', token ? 'EXISTS' : 'NULL');
