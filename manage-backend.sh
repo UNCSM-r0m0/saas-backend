@@ -102,27 +102,63 @@ postgres_start() {
   
   # Verificar si PostgreSQL ya está corriendo
   if pgrep -f "postgres" >/dev/null; then
-    echo -e "${YELLOW}✅ PostgreSQL ya está corriendo${NC}"
-    return 0
+    if pg_isready -h localhost -p "$POSTGRES_PORT" >/dev/null 2>&1; then
+      echo -e "${YELLOW}✅ PostgreSQL ya está corriendo y listo${NC}"
+      return 0
+    else
+      echo -e "${YELLOW}⚠️  PostgreSQL está corriendo pero no responde, intentando reiniciar...${NC}"
+      postgres_stop
+      sleep 2
+    fi
   fi
   
-  # Intentar iniciar con systemctl (si está disponible)
-  if command -v systemctl >/dev/null 2>&1; then
-    sudo systemctl start "$POSTGRES_SERVICE" 2>/dev/null || {
-      echo -e "${YELLOW}⚠️  systemctl falló, intentando con service...${NC}"
-      sudo service "$POSTGRES_SERVICE" start 2>/dev/null || {
-        echo -e "${RED}❌ No se pudo iniciar PostgreSQL${NC}"
-        echo -e "${YELLOW}➡️  Instala PostgreSQL: sudo apt install postgresql postgresql-contrib${NC}"
-        exit 1
-      }
-    }
+  # Método 1: Intentar con pg_ctlcluster (sin sudo, funciona en WSL si tienes permisos)
+  if command -v pg_ctlcluster >/dev/null 2>&1; then
+    # Detectar versión de PostgreSQL instalada
+    PG_VERSION=$(pg_lsclusters 2>/dev/null | awk 'NR==2 {print $1}' | head -1)
+    if [ -n "$PG_VERSION" ]; then
+      echo -e "${BLUE}📦 Intentando iniciar con pg_ctlcluster (versión $PG_VERSION)...${NC}"
+      if pg_ctlcluster "$PG_VERSION" main start 2>/dev/null; then
+        echo -e "${GREEN}✅ PostgreSQL iniciado con pg_ctlcluster${NC}"
+        # Esperar a que esté listo
+        echo -e "${BLUE}⏳ Esperando a que PostgreSQL esté listo...${NC}"
+        for i in {1..30}; do
+          if pg_isready -h localhost -p "$POSTGRES_PORT" >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ PostgreSQL está listo${NC}"
+            return 0
+          fi
+          sleep 1
+        done
+      fi
+    fi
+  fi
+  
+  # Método 2: Intentar con service (requiere sudo pero es más común)
+  echo -e "${BLUE}📦 Intentando iniciar con service...${NC}"
+  if sudo service "$POSTGRES_SERVICE" start 2>/dev/null; then
+    echo -e "${GREEN}✅ PostgreSQL iniciado con service${NC}"
   else
-    # Fallback: usar service
-    sudo service "$POSTGRES_SERVICE" start 2>/dev/null || {
+    # Método 3: Intentar con systemctl (si está disponible)
+    if command -v systemctl >/dev/null 2>&1; then
+      echo -e "${BLUE}📦 Intentando iniciar con systemctl...${NC}"
+      if sudo systemctl start "$POSTGRES_SERVICE" 2>/dev/null; then
+        echo -e "${GREEN}✅ PostgreSQL iniciado con systemctl${NC}"
+      else
+        echo -e "${RED}❌ No se pudo iniciar PostgreSQL con ningún método${NC}"
+        echo -e "${YELLOW}➡️  Verifica que PostgreSQL esté instalado:${NC}"
+        echo -e "${YELLOW}   sudo apt install postgresql postgresql-contrib${NC}"
+        echo -e "${YELLOW}➡️  O inicia manualmente:${NC}"
+        echo -e "${YELLOW}   sudo service postgresql start${NC}"
+        echo -e "${YELLOW}   o${NC}"
+        echo -e "${YELLOW}   pg_ctlcluster <versión> main start${NC}"
+        exit 1
+      fi
+    else
       echo -e "${RED}❌ No se pudo iniciar PostgreSQL${NC}"
       echo -e "${YELLOW}➡️  Instala PostgreSQL: sudo apt install postgresql postgresql-contrib${NC}"
+      echo -e "${YELLOW}➡️  O inicia manualmente: sudo service postgresql start${NC}"
       exit 1
-    }
+    fi
   fi
   
   # Esperar a que PostgreSQL esté listo
@@ -136,17 +172,34 @@ postgres_start() {
   done
   
   echo -e "${RED}❌ PostgreSQL no respondió en 30 segundos${NC}"
+  echo -e "${YELLOW}➡️  Verifica los logs: sudo tail -f /var/log/postgresql/postgresql-*-main.log${NC}"
   exit 1
 }
 
 postgres_stop() {
   echo -e "${YELLOW}🛑 Deteniendo PostgreSQL...${NC}"
   
-  if command -v systemctl >/dev/null 2>&1; then
-    sudo systemctl stop "$POSTGRES_SERVICE" 2>/dev/null || true
-  else
-    sudo service "$POSTGRES_SERVICE" stop 2>/dev/null || true
+  # Verificar si PostgreSQL está corriendo
+  if ! pgrep -f "postgres" >/dev/null; then
+    echo -e "${YELLOW}✅ PostgreSQL no está corriendo${NC}"
+    return 0
   fi
+  
+  # Método 1: Intentar con pg_ctlcluster (sin sudo)
+  if command -v pg_ctlcluster >/dev/null 2>&1; then
+    PG_VERSION=$(pg_lsclusters 2>/dev/null | awk 'NR==2 {print $1}' | head -1)
+    if [ -n "$PG_VERSION" ]; then
+      pg_ctlcluster "$PG_VERSION" main stop 2>/dev/null && return 0
+    fi
+  fi
+  
+  # Método 2: Intentar con service
+  sudo service "$POSTGRES_SERVICE" stop 2>/dev/null || {
+    # Método 3: Intentar con systemctl
+    if command -v systemctl >/dev/null 2>&1; then
+      sudo systemctl stop "$POSTGRES_SERVICE" 2>/dev/null || true
+    fi
+  }
 }
 
 postgres_status() {
