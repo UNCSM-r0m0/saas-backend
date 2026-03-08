@@ -143,7 +143,7 @@ function Show-Logs {
 function Health-Checks {
   Write-Header "`n[HEALTH CHECKS]"
   Write-Host "1) Backend: users.health (NATS)" -ForegroundColor Yellow
-  Write-Host "2) Gateway: /api/health" -ForegroundColor Yellow
+  Write-Host "2) Gateway: /api/health (3001)" -ForegroundColor Yellow
   Write-Host "3) n8n: HTTP status" -ForegroundColor Yellow
   $choice = Read-Host "Opcion (1/2/3)"
   if ($choice -eq "1") {
@@ -160,10 +160,10 @@ function Health-Checks {
     }
   } elseif ($choice -eq "2") {
     try {
-      $resp = Invoke-WebRequest -Uri "http://localhost:3000/api/health" -TimeoutSec 5
-      Write-Success "gateway /api/health: $($resp.StatusCode)"
+      $resp = Invoke-WebRequest -Uri "http://localhost:3001/api/health" -TimeoutSec 5
+      Write-Success "gateway /api/health (3001): $($resp.StatusCode)"
     } catch {
-      Write-WarningMsg "No se pudo acceder a gateway en http://localhost:3000/api/health"
+      Write-WarningMsg "No se pudo acceder a gateway en http://localhost:3001/api/health"
     }
   } elseif ($choice -eq "3") {
     try {
