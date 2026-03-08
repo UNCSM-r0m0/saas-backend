@@ -52,6 +52,32 @@ function Rebuild-Backend {
   Write-Success "[OK] Backend rebuild completado"
 }
 
+function Rebuild-Service {
+  Write-Header "`n[REBUILD SERVICIO]"
+  Write-Host "1) gateway" -ForegroundColor Yellow
+  Write-Host "2) auth" -ForegroundColor Yellow
+  Write-Host "3) users" -ForegroundColor Yellow
+  Write-Host "4) chat" -ForegroundColor Yellow
+  Write-Host "5) billing" -ForegroundColor Yellow
+  Write-Host "6) usage" -ForegroundColor Yellow
+  $choice = Read-Host "Servicio (1-6)"
+  $service = switch ($choice) {
+    "1" { "gateway" }
+    "2" { "auth" }
+    "3" { "users" }
+    "4" { "chat" }
+    "5" { "billing" }
+    "6" { "usage" }
+    default { $null }
+  }
+  if (-not $service) {
+    Write-WarningMsg "Opcion invalida"
+    return
+  }
+  Compose $BackendCompose $BackendProject @("up", "-d", "--build", $service)
+  Write-Success "[OK] Rebuild completado: $service"
+}
+
 function Stop-Backend {
   Write-Header "`n[DETENIENDO BACKEND]"
   Compose $BackendCompose $BackendProject @("down")
@@ -149,6 +175,7 @@ function Show-Menu {
   Write-Host "  8. Ver logs"
   Write-Host "  9. Health checks"
   Write-Host " 10. Rebuild gateway/users"
+  Write-Host " 11. Rebuild servicio (uno)"
   Write-Host "  0. Salir"
   Write-Host ""
 }
@@ -171,6 +198,7 @@ do {
     "8" { Show-Logs }
     "9" { Health-Checks }
     "10" { Rebuild-Backend }
+    "11" { Rebuild-Service }
     "0" { Write-Success "`nHasta luego!`n"; exit }
     default { Write-WarningMsg "Opcion invalida" }
   }
