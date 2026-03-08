@@ -35,6 +35,9 @@ export class OllamaService {
     private readonly logger = new Logger(OllamaService.name);
     private readonly ollamaUrl: string;
     private readonly defaultModel: string;
+    private readonly ollamaProxyUrl?: string;
+    private readonly ollamaProxyApiKey?: string;
+    private readonly useProxy: boolean;
 
     constructor(private configService: ConfigService) {
         this.ollamaUrl = this.configService.get<string>(
@@ -45,6 +48,9 @@ export class OllamaService {
             'OLLAMA_MODEL',
             'deepseek-r1:7b',
         );
+        this.ollamaProxyUrl = this.configService.get<string>('OLLAMA_PROXY_URL');
+        this.ollamaProxyApiKey = this.configService.get<string>('OLLAMA_PROXY_API_KEY');
+        this.useProxy = !!this.ollamaProxyUrl;
     }
 
     /**
@@ -64,6 +70,71 @@ export class OllamaService {
         maxTokens?: number,
     ): AsyncGenerator<{ content: string }> {
         try {
+            if (this.useProxy && this.ollamaProxyUrl) {
+                const payload = {
+                    model: model || this.defaultModel,
+                    messages,
+                    stream: true,
+                    temperature: 0.7,
+                    top_p: 0.9,
+                    max_tokens: maxTokens || 2048,
+                };
+
+                this.logger.log(
+                    `Generando stream via proxy con modelo ${model || this.defaultModel}`,
+                );
+
+                const response = await fetch(`${this.ollamaProxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(this.ollamaProxyApiKey
+                            ? { Authorization: `Bearer ${this.ollamaProxyApiKey}` }
+                            : {}),
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok || !response.body) {
+                    throw new HttpException(
+                        `Ollama proxy stream error: ${response.statusText}`,
+                        response.status,
+                    );
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed.startsWith('data:')) continue;
+                        const data = trimmed.replace(/^data:\s*/, '');
+                        if (data === '[DONE]') return;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const content = parsed.choices?.[0]?.delta?.content || '';
+                            if (content) {
+                                yield { content };
+                            }
+                        } catch (e) {
+                            this.logger.warn(`📥 Error parseando SSE: "${data}"`);
+                        }
+                    }
+                }
+
+                return;
+            }
+
             const payload: OllamaGenerateRequest = {
                 model: model || this.defaultModel,
                 messages,
@@ -157,6 +228,50 @@ export class OllamaService {
         model?: string,
     ): Promise<{ content: string; tokensUsed: number }> {
         try {
+            if (this.useProxy && this.ollamaProxyUrl) {
+                const payload = {
+                    model: model || this.defaultModel,
+                    messages,
+                    stream: false,
+                    temperature: 0.7,
+                    top_p: 0.9,
+                    max_tokens: maxTokens || 2048,
+                };
+
+                this.logger.log(
+                    `Generando respuesta via proxy con modelo ${model || this.defaultModel} (max_tokens: ${maxTokens})`,
+                );
+
+                const response = await fetch(`${this.ollamaProxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(this.ollamaProxyApiKey
+                            ? { Authorization: `Bearer ${this.ollamaProxyApiKey}` }
+                            : {}),
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    throw new HttpException(
+                        `Ollama proxy error: ${response.statusText}`,
+                        response.status,
+                    );
+                }
+
+                const data = await response.json();
+                const responseText = data.choices?.[0]?.message?.content || '';
+                const tokensUsed = data.usage?.total_tokens || 0;
+
+                const cleanedContent = this.stripThinkTags(responseText);
+
+                return {
+                    content: cleanedContent,
+                    tokensUsed,
+                };
+            }
+
             const payload: OllamaGenerateRequest = {
                 model: model || this.defaultModel,
                 messages,
@@ -213,6 +328,16 @@ export class OllamaService {
      */
     async healthCheck(): Promise<boolean> {
         try {
+            if (this.useProxy && this.ollamaProxyUrl) {
+                const response = await fetch(`${this.ollamaProxyUrl}/v1/models`, {
+                    method: 'GET',
+                    headers: this.ollamaProxyApiKey
+                        ? { Authorization: `Bearer ${this.ollamaProxyApiKey}` }
+                        : undefined,
+                });
+                return response.ok;
+            }
+
             const response = await fetch(`${this.ollamaUrl}/api/tags`, {
                 method: 'GET',
             });
@@ -228,6 +353,18 @@ export class OllamaService {
      */
     async listModels(): Promise<string[]> {
         try {
+            if (this.useProxy && this.ollamaProxyUrl) {
+                const response = await fetch(`${this.ollamaProxyUrl}/v1/models`, {
+                    headers: this.ollamaProxyApiKey
+                        ? { Authorization: `Bearer ${this.ollamaProxyApiKey}` }
+                        : undefined,
+                });
+                if (!response.ok) return [];
+
+                const data = await response.json();
+                return data.data?.map((m: any) => m.id) || [];
+            }
+
             const response = await fetch(`${this.ollamaUrl}/api/tags`);
             if (!response.ok) return [];
 
@@ -244,6 +381,9 @@ export class OllamaService {
      */
     isAvailable(): boolean {
         // Por ahora asumimos que está disponible si la URL está configurada
+        if (this.useProxy) {
+            return !!this.ollamaProxyUrl;
+        }
         return !!this.ollamaUrl && this.ollamaUrl !== '';
     }
 }

@@ -13,7 +13,10 @@ import {
     Res,
     Header,
     Logger,
+    Inject,
 } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
 import type { Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import {
@@ -50,6 +53,7 @@ export class ChatController {
         private readonly deepseekService: DeepSeekService,
         private readonly subscriptionsService: SubscriptionsService,
         private readonly usageService: UsageService,
+        @Inject('CHAT_NATS') private readonly chatClient: ClientProxy,
     ) { }
 
     /**
@@ -324,7 +328,12 @@ export class ChatController {
                 userId = getUserIdFromAuthHeader(req.headers?.authorization);
             }
             this.logger.log(`📨 [POST /chat/message] Procesando mensaje para usuario ${userId || 'anónimo'}, modelo: ${dto.model || 'ollama'}`);
-            const result = await this.chatService.sendMessage(dto, userId || undefined);
+            const result = await lastValueFrom(
+                this.chatClient.send('chat.sendMessage', {
+                    dto,
+                    userId: userId || undefined,
+                }),
+            );
             this.logger.log(`✅ [POST /chat/message] Respuesta enviada exitosamente: ${result.message.content.length} caracteres`);
             return result;
         } catch (error) {

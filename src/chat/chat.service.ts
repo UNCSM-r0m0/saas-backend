@@ -560,7 +560,7 @@ export class ChatService {
                 userId: userId ?? null,
                 role: MessageRole.USER,
                 content,
-                model: model || 'deepseek-r1:7b',
+                model: model || 'qwen2.5-coder:7b',
             },
         });
 
@@ -587,7 +587,7 @@ export class ChatService {
                 userId: null, // Assistant no tiene userId
                 role: MessageRole.ASSISTANT,
                 content,
-                model: model || 'deepseek-r1:7b',
+                model: model || 'qwen2.5-coder:7b',
             },
         });
 
