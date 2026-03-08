@@ -89,6 +89,7 @@ model User {
   chats        Chat[]        @relation("UserChats") // como owner opcional
   messages     Message[]
   usageRecords UsageRecord[]
+  refreshTokens RefreshToken[]
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -98,6 +99,20 @@ model User {
   @@index([email])
   @@index([tenantId])
   @@map("users")
+  @@schema("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
   @@schema("users")
 }
 

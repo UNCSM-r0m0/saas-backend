@@ -115,12 +115,26 @@ function Show-Logs {
   Write-Host "2) n8n" -ForegroundColor Yellow
   $stack = Read-Host "Stack (1/2)"
   $service = Read-Host "Servicio (vacio = todos)"
+  Write-Host "Modo logs:" -ForegroundColor Yellow
+  Write-Host "  1) Ver ultimas 200 lineas" -ForegroundColor Yellow
+  Write-Host "  2) Seguir en otra ventana" -ForegroundColor Yellow
+  $mode = Read-Host "Opcion (1/2)"
   if ($stack -eq "1") {
-    if ([string]::IsNullOrWhiteSpace($service)) { Compose $BackendCompose $BackendProject @("logs", "-f") }
-    else { Compose $BackendCompose $BackendProject @("logs", "-f", $service) }
+    if ($mode -eq "2") {
+      $args = if ([string]::IsNullOrWhiteSpace($service)) { "logs -f" } else { "logs -f $service" }
+      Start-Process powershell -ArgumentList "-NoExit", "-Command", "docker compose -p $BackendProject -f `"$BackendCompose`" $args"
+    } else {
+      if ([string]::IsNullOrWhiteSpace($service)) { Compose $BackendCompose $BackendProject @("logs", "--tail", "200") }
+      else { Compose $BackendCompose $BackendProject @("logs", "--tail", "200", $service) }
+    }
   } elseif ($stack -eq "2") {
-    if ([string]::IsNullOrWhiteSpace($service)) { Compose $N8nCompose $N8nProject @("logs", "-f") }
-    else { Compose $N8nCompose $N8nProject @("logs", "-f", $service) }
+    if ($mode -eq "2") {
+      $args = if ([string]::IsNullOrWhiteSpace($service)) { "logs -f" } else { "logs -f $service" }
+      Start-Process powershell -ArgumentList "-NoExit", "-Command", "docker compose -p $N8nProject -f `"$N8nCompose`" $args"
+    } else {
+      if ([string]::IsNullOrWhiteSpace($service)) { Compose $N8nCompose $N8nProject @("logs", "--tail", "200") }
+      else { Compose $N8nCompose $N8nProject @("logs", "--tail", "200", $service) }
+    }
   } else {
     Write-WarningMsg "Opcion invalida"
   }

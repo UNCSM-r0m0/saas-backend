@@ -58,7 +58,7 @@ Necesidad del negocio:
 
 ### Fase 5 - Auth
 
-- Migrar auth a `apps/auth`.
+- Migrar auth a `apps/auth` (en progreso).
 - Contratos NATS para login/registro/token refresh.
 
 ### Fase 6 - Billing/Stripe
@@ -73,8 +73,9 @@ Necesidad del negocio:
 
 ## Checklist por endpoint
 
-- [ ] `GET /api/models/public` -> dinamico via proxy
+- [x] `GET /api/models/public` -> dinamico via proxy
 - [ ] `POST /api/chat/message` -> NATS (parcial)
-- [ ] `POST /api/auth/login` -> NATS
+- [ ] `POST /api/auth/login` -> NATS (en progreso)
+- [ ] `POST /api/auth/refresh` -> NATS (nuevo)
 - [ ] `POST /api/stripe/create-checkout-session` -> NATS
 - [ ] `GET /api/users` -> NATS (listo)

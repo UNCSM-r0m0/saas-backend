@@ -28,6 +28,8 @@ import { ModelsModule } from './models/models.module';
         DATABASE_URL: Joi.string().required(),
         JWT_SECRET: Joi.string().required(),
         JWT_EXPIRATION: Joi.string().default('7d'),
+        JWT_ACCESS_EXPIRES: Joi.string().default('15m'),
+        JWT_REFRESH_EXPIRES: Joi.string().default('30d'),
         GOOGLE_CLIENT_ID: Joi.string().optional(),
         GOOGLE_CLIENT_SECRET: Joi.string().optional(),
         GOOGLE_CALLBACK_URL: Joi.string().optional(),
