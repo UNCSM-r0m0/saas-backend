@@ -40,9 +40,20 @@ function Compose {
   & docker compose -p $Project -f $File @ComposeArgs
 }
 
+function Run-Backend-Migrations {
+  Write-Header "`n[MIGRACIONES BACKEND]"
+  Compose $BackendCompose $BackendProject @("run", "--rm", "--no-deps", "gateway", "npx", "prisma", "migrate", "deploy")
+  if ($LASTEXITCODE -eq 0) {
+    Write-Success "[OK] Migraciones aplicadas (o sin pendientes)"
+  } else {
+    Write-WarningMsg "[WARN] No se pudieron aplicar migraciones automaticamente"
+  }
+}
+
 function Start-Backend {
   Write-Header "`n[INICIANDO BACKEND]"
   Compose $BackendCompose $BackendProject @("up", "-d")
+  Run-Backend-Migrations
   Write-Success "[OK] Backend iniciado"
 }
 
@@ -201,6 +212,7 @@ function Show-Menu {
   Write-Host " 10. Rebuild gateway/users"
   Write-Host " 11. Rebuild servicio (uno)"
   Write-Host " 12. Rebuild todos los servicios"
+  Write-Host " 13. Ejecutar migraciones backend"
   Write-Host "  0. Salir"
   Write-Host ""
 }
@@ -225,6 +237,7 @@ do {
     "10" { Rebuild-Backend }
     "11" { Rebuild-Service }
     "12" { Rebuild-All-Services }
+    "13" { Run-Backend-Migrations }
     "0" { Write-Success "`nHasta luego!`n"; exit }
     default { Write-WarningMsg "Opcion invalida" }
   }

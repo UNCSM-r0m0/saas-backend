@@ -18,6 +18,6 @@ import { UsersClient } from './users.client';
   ],
   controllers: [UsersController],
   providers: [UsersService, UsersClient],
-  exports: [UsersService],
+  exports: [UsersService, UsersClient],
 })
 export class UsersModule {}

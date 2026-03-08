@@ -2,7 +2,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from 'libs/users';
+import { UsersClient } from '../../users/users.client';
 
 export interface JwtPayload {
   sub: string;
@@ -34,7 +34,7 @@ const cookieExtractor = (req: any) => {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
-    private usersService: UsersService,
+    private usersClient: UsersClient,
   ) {
     const secret = configService.get<string>('JWT_SECRET');
     if (!secret) {
@@ -54,7 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     console.log('🔍 JwtStrategy.validate: Payload recibido:', payload);
 
     // Verificar que el usuario existe en la base de datos
-    const user = await this.usersService.findById(payload.sub);
+    const user = await this.usersClient.findOne(payload.sub);
     if (!user) {
       console.log(
         '🔍 JwtStrategy.validate: ❌ Usuario no encontrado en BD:',
