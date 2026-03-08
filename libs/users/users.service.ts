@@ -3,15 +3,14 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { PrismaService } from '../prisma/prisma.service';
+import { CreateUserDto, UpdateUserDto } from 'libs/contracts/users';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { User } from './entities/user.entity';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     console.log('🔍 [UsersService] create: DTO recibido:', createUserDto);
@@ -22,7 +21,10 @@ export class UsersService {
     });
 
     if (existingUser) {
-      console.log('🔍 [UsersService] create: ❌ Usuario ya existe:', existingUser.email);
+      console.log(
+        '🔍 [UsersService] create: ❌ Usuario ya existe:',
+        existingUser.email,
+      );
       throw new ConflictException('Email already exists');
     }
 
@@ -32,7 +34,9 @@ export class UsersService {
       hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     }
 
-    console.log('🔍 [UsersService] create: Creando usuario en base de datos...');
+    console.log(
+      '🔍 [UsersService] create: Creando usuario en base de datos...',
+    );
     const user = await this.prisma.user.create({
       data: {
         ...createUserDto,
@@ -40,7 +44,10 @@ export class UsersService {
       },
     });
 
-    console.log('🔍 [UsersService] create: ✅ Usuario creado:', `${user.email} (ID: ${user.id})`);
+    console.log(
+      '🔍 [UsersService] create: ✅ Usuario creado:',
+      `${user.email} (ID: ${user.id})`,
+    );
     return new User(user);
   }
 

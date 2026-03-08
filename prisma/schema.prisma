@@ -3,11 +3,14 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public", "users"]
 }
 
 // Enums
@@ -15,18 +18,24 @@ enum UserRole {
   SUPER_ADMIN
   ADMIN
   USER
+
+  @@schema("users")
 }
 
 enum AuthProvider {
   LOCAL
   GOOGLE
   GITHUB
+
+  @@schema("users")
 }
 
 enum SubscriptionTier {
   FREE // Anónimos: 3 mensajes
   REGISTERED // Registrados: 50 mensajes/día
   PREMIUM // Premium: 100 mensajes/día + imágenes
+
+  @@schema("public")
 }
 
 enum SubscriptionStatus {
@@ -34,12 +43,16 @@ enum SubscriptionStatus {
   CANCELED
   EXPIRED
   TRIALING
+
+  @@schema("public")
 }
 
 enum MessageRole {
   USER
   ASSISTANT
   SYSTEM
+
+  @@schema("public")
 }
 
 // Estado de mensajes (para streams y telemetría)
@@ -48,10 +61,13 @@ enum MessageStatus {
   STREAMING
   DONE
   ERROR
+
+  @@schema("public")
 }
 
 // Models
 model User {
+  // Users domain lives in the "users" schema to reduce cross-service coupling.
   id            String       @id @default(uuid())
   email         String       @unique
   password      String? // Null para OAuth users
@@ -82,6 +98,7 @@ model User {
   @@index([email])
   @@index([tenantId])
   @@map("users")
+  @@schema("users")
 }
 
 model Tenant {
@@ -99,6 +116,7 @@ model Tenant {
 
   @@index([slug])
   @@map("tenants")
+  @@schema("users")
 }
 
 // Subscriptions (FREE, REGISTERED, PREMIUM)
@@ -122,6 +140,7 @@ model Subscription {
   @@index([userId])
   @@index([stripeCustomerId])
   @@map("subscriptions")
+  @@schema("public")
 }
 
 // Nuevo modelo Chat para sesiones mejoradas
@@ -143,6 +162,7 @@ model Chat {
   @@index([ownerId])
   @@index([createdAt])
   @@map("chats")
+  @@schema("public")
 }
 
 // Mensajes del chat
@@ -173,6 +193,7 @@ model Message {
   @@index([userId])
   @@index([createdAt])
   @@map("messages")
+  @@schema("public")
 }
 
 // Tracking de uso (para rate limiting)
@@ -198,4 +219,5 @@ model UsageRecord {
   @@index([userId, date])
   @@index([anonymousId, date])
   @@map("usage_records")
+  @@schema("public")
 }
