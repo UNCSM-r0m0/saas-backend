@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
+import { ChatSessionsController } from './chat-sessions.controller';
+import { ChatMessagesController } from './chat-messages.controller';
 import { ChatGateway } from './chat.gateway';
 import { ChatClient } from './chat.client';
 import { UsageService } from '../usage/usage.service';
@@ -31,7 +33,7 @@ import { AuthModule } from '../auth/auth.module';
     WsModule,
   ],
   providers: [ChatService, ChatGateway, UsageService, ChatClient],
-  controllers: [ChatController],
+  controllers: [ChatController, ChatSessionsController, ChatMessagesController],
   exports: [ChatService, ChatClient],
 })
 export class ChatModule {}

@@ -5,6 +5,7 @@ Este directorio contiene la guia viva para la migracion del monolito a un monore
 Archivos clave:
 
 - migration-plan.md: plan por fases, decisiones y checklist.
+- frontend-chat-integration.md: guia de integracion frontend para chat tras el split de controladores.
 
 Reglas de trabajo:
 

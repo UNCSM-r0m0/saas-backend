@@ -10,7 +10,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["public", "users"]
+  schemas  = ["public", "users", "chat"]
 }
 
 // Enums
@@ -52,7 +52,7 @@ enum MessageRole {
   ASSISTANT
   SYSTEM
 
-  @@schema("public")
+  @@schema("chat")
 }
 
 // Estado de mensajes (para streams y telemetría)
@@ -62,7 +62,7 @@ enum MessageStatus {
   DONE
   ERROR
 
-  @@schema("public")
+  @@schema("chat")
 }
 
 // Models
@@ -177,7 +177,7 @@ model Chat {
   @@index([ownerId])
   @@index([createdAt])
   @@map("chats")
-  @@schema("public")
+  @@schema("chat")
 }
 
 // Mensajes del chat
@@ -208,7 +208,7 @@ model Message {
   @@index([userId])
   @@index([createdAt])
   @@map("messages")
-  @@schema("public")
+  @@schema("chat")
 }
 
 // Tracking de uso (para rate limiting)

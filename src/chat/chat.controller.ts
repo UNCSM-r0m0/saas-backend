@@ -1,45 +1,19 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Delete,
-  Patch,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-  Request,
-  Req,
-  Res,
-  Header,
-  Logger,
-} from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiBody,
-} from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
-import { ChatResponseDto } from './dto/chat-response.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ClientTypeGuard } from '../common/guards/client-type.guard';
+import { UsageService } from '../usage/usage.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { OllamaService } from '../ollama/ollama.service';
 import { GeminiService } from '../gemini/gemini.service';
 import { OpenAIService } from '../openai/openai.service';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service';
-import { UsageService } from '../usage/usage.service';
-import { JwtService } from '@nestjs/jwt';
 import { DeepSeekService } from '../deepseek/deepseek.service';
 import {
-  getUserIdFromReq,
   getUserIdFromAuthHeader,
+  getUserIdFromReq,
 } from '../common/utils/auth.util';
-import { ChatClient } from './chat.client';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -54,12 +28,8 @@ export class ChatController {
     private readonly deepseekService: DeepSeekService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly usageService: UsageService,
-    private readonly chatClient: ChatClient,
   ) {}
 
-  /**
-   * Obtener información del modelo OpenAI/LLM Studio (incluye stats de cola)
-   */
   @Get('models/openai/info')
   @Public()
   @ApiOperation({
@@ -74,288 +44,6 @@ export class ChatController {
     };
   }
 
-  // MÃ‰TODO ELIMINADO: getChats() - duplicado con listConversations()
-  // Usar /api/chat/conversations en su lugar
-
-  /**
-   * Crear un nuevo chat
-   */
-  @Post()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: 'Crear un nuevo chat',
-    description: 'Crea un nuevo chat para el usuario autenticado',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Chat creado exitosamente',
-    schema: {
-      type: 'object',
-      properties: {
-        chat: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            title: { type: 'string' },
-            model: { type: 'string' },
-            messages: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string' },
-                  role: { type: 'string' },
-                  content: { type: 'string' },
-                  createdAt: { type: 'string' },
-                },
-              },
-            },
-            createdAt: { type: 'string' },
-            updatedAt: { type: 'string' },
-          },
-        },
-      },
-    },
-  })
-  @ApiBearerAuth('JWT-auth')
-  async createChat(@Body() createChatDto: any, @Req() req: any) {
-    const userId = getUserIdFromReq(req);
-    const chat = await this.chatClient.createChat(userId, createChatDto?.title);
-    return {
-      success: true,
-      data: chat,
-      message: 'Chat creado exitosamente',
-    };
-  }
-
-  // ---- Chat sessions (placed before dynamic ":id" to avoid collisions) ----
-  @Post('sessions')
-  @UseGuards(JwtAuthGuard)
-  async createChatSession(
-    @Request() req: any,
-    @Body() body: { title?: string },
-  ) {
-    const userId = getUserIdFromReq(req)!;
-    const chat = await this.chatClient.createChat(userId, body.title);
-    return { success: true, data: chat };
-  }
-
-  @Get('sessions')
-  @UseGuards(JwtAuthGuard)
-  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
-  @Header('Pragma', 'no-cache')
-  @Header('Expires', '0')
-  @Header('Vary', 'Cookie, Authorization, Origin')
-  async listChatSessions(@Request() req: any) {
-    const userId = getUserIdFromReq(req)!;
-    console.log(`🔍 [GET /chat/sessions] Iniciando para userId: ${userId}`);
-
-    try {
-      const chats = await this.chatClient.listChats(userId);
-      console.log(
-        `📊 [GET /chat/sessions] Chats encontrados: ${Array.isArray(chats) ? chats.length : 'n/a'}`,
-      );
-      console.log(`📋 [GET /chat/sessions] Datos de chats:`, chats);
-
-      const response = { success: true, data: chats };
-      console.log(`✅ [GET /chat/sessions] Respuesta enviada:`, response);
-      return response;
-    } catch (error) {
-      console.error(`❌ [GET /chat/sessions] Error:`, error);
-      return {
-        success: false,
-        message: error.message || 'Error al obtener chats',
-        error: error.toString(),
-      };
-    }
-  }
-
-  @Patch('sessions/:id')
-  @UseGuards(JwtAuthGuard)
-  async renameChatSession(
-    @Param('id') chatId: string,
-    @Body() body: { title: string },
-    @Request() req: any,
-  ) {
-    const userId = getUserIdFromReq(req)!;
-    await this.chatClient.renameChat(chatId, body.title, userId);
-    return { success: true, message: 'Chat renombrado exitosamente' };
-  }
-
-  @Delete('sessions/:id')
-  @UseGuards(JwtAuthGuard)
-  async deleteChatSession(@Param('id') chatId: string, @Request() req: any) {
-    const userId = getUserIdFromReq(req)!;
-    await this.chatClient.deleteChat(chatId, userId);
-    return { success: true, message: 'Chat eliminado exitosamente' };
-  }
-
-  @Get('sessions/:id/messages')
-  @UseGuards(JwtAuthGuard)
-  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
-  @Header('Pragma', 'no-cache')
-  @Header('Expires', '0')
-  @Header('Vary', 'Cookie, Authorization, Origin')
-  async getChatSessionMessages(
-    @Param('id') chatId: string,
-    @Request() req: any,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ): Promise<any> {
-    const messages = await this.chatClient.getChatHistory(chatId);
-    return { success: true, data: messages };
-  }
-
-  // ENDPOINT ELIMINADO: /api/chat/models
-  // Usar /api/models/public en su lugar para evitar duplicaciÃ³n
-
-  // ENDPOINT ELIMINADO: /api/chat (duplicado con /api/chat/conversations)
-  // Usar /api/chat/conversations en su lugar
-
-  /**
-   * Obtener un chat especÃ­fico con sus mensajes
-   */
-  @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: 'Obtener un chat especÃ­fico',
-    description: 'Retorna un chat especÃ­fico con todos sus mensajes',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Chat obtenido exitosamente',
-    schema: {
-      type: 'object',
-      properties: {
-        chat: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            title: { type: 'string' },
-            model: { type: 'string' },
-            messages: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string' },
-                  role: { type: 'string' },
-                  content: { type: 'string' },
-                  createdAt: { type: 'string' },
-                },
-              },
-            },
-            createdAt: { type: 'string' },
-            updatedAt: { type: 'string' },
-          },
-        },
-      },
-    },
-  })
-  @ApiBearerAuth('JWT-auth')
-  async getChat(@Param('id') id: string, @Req() req: any) {
-    const userId = getUserIdFromReq(req);
-
-    if (!userId) {
-      return {
-        success: false,
-        message: 'Usuario no autenticado',
-      };
-    }
-
-    try {
-      const conversation: any = await this.chatClient.getChat(id, userId);
-
-      if (!conversation) {
-        return {
-          success: false,
-          message: 'Chat no encontrado',
-        };
-      }
-
-      // Convertir a formato esperado por el frontend
-      const chatData = {
-        id: conversation.id,
-        title: conversation.title,
-        model: 'ollama', // Por defecto
-        messages: conversation.messages.map((msg) => ({
-          id: msg.id,
-          role: msg.role.toLowerCase(),
-          content: msg.content,
-          createdAt: msg.createdAt,
-        })),
-        createdAt: conversation.createdAt,
-        updatedAt: conversation.updatedAt,
-      };
-
-      return {
-        success: true,
-        data: chatData,
-        message: 'Chat obtenido exitosamente',
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message || 'Error al obtener chat',
-      };
-    }
-  }
-
-  /**
-   * Enviar mensaje (anónimos y registrados)
-   */
-  @Post('message')
-  @Public() // Permitir acceso público para usuarios anónimos
-  @ApiOperation({
-    summary: 'Enviar mensaje al chat',
-    description:
-      'Usuarios anÃ³nimos: 3 mensajes/dÃ­a sin historial. Registrados: 50 mensajes/dÃ­a con historial. Premium: 1000 mensajes/dÃ­a + imÃ¡genes.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Respuesta del chat',
-    type: ChatResponseDto,
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'LÃ­mite de mensajes alcanzado',
-  })
-  @ApiBody({ type: SendMessageDto })
-  async sendMessage(@Body() dto: SendMessageDto, @Req() req: any) {
-    try {
-      // Obtener userId si está autenticado (opcional)
-      let userId = getUserIdFromReq(req);
-      if (!userId) {
-        userId = getUserIdFromAuthHeader(req.headers?.authorization);
-      }
-      this.logger.log(
-        `📨 [POST /chat/message] Procesando mensaje para usuario ${userId || 'anónimo'}, modelo: ${dto.model || 'ollama'}`,
-      );
-      const result: any = await this.chatClient.sendMessage(
-        dto,
-        userId || undefined,
-      );
-      this.logger.log(
-        `✅ [POST /chat/message] Respuesta enviada exitosamente: ${result.message.content.length} caracteres`,
-      );
-      return result;
-    } catch (error) {
-      this.logger.error(
-        `❌ [POST /chat/message] Error procesando mensaje:`,
-        error,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Enviar mensaje (solo usuarios registrados con JWT)
-   */
-
-  /**
-   * Streaming via SSE (HTTP) para anónimos y registrados.
-   * Emite chunks con 'data: {"content":"..."}' y finaliza con 'data: {"finished":true}'.
-   */
   @Post('message/stream')
   @Public()
   @ApiOperation({ summary: 'Enviar mensaje con streaming (SSE)' })
@@ -480,7 +168,9 @@ export class ChatController {
       if (selectedModel === 'deepseek') {
         const result = await this.deepseekService.generateResponse(
           dto.content,
-          { maxTokens: limits.maxTokensPerMessage },
+          {
+            maxTokens: limits.maxTokensPerMessage,
+          },
         );
         fullContent = result.response;
         sendChunk(fullContent);
@@ -548,74 +238,11 @@ export class ChatController {
 
       return await finish(fullContent);
     } catch (err: any) {
+      this.logger.error('Error en streamMessage', err?.stack || err);
       res.write(
         `data: ${JSON.stringify({ error: 'STREAM_ERROR', message: err?.message || 'Error en streaming' })}\n\n`,
       );
       return res.end();
     }
   }
-  @Post('message/authenticated')
-  @UseGuards(ClientTypeGuard, JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Enviar mensaje autenticado (guarda historial)',
-  })
-  @ApiResponse({ status: 200, type: ChatResponseDto })
-  async sendAuthenticatedMessage(@Body() dto: SendMessageDto, @Req() req: any) {
-    const userId = getUserIdFromReq(req)!;
-    return this.chatClient.sendMessage(dto, userId);
-  }
-
-  /**
-   * Actualiza el primer mensaje del usuario y regenera el tÃ­tulo si procede
-   */
-  @Patch(':conversationId/first-message')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Actualizar primer mensaje y regenerar tÃ­tulo' })
-  async updateFirstMessage(
-    @Param('conversationId') conversationId: string,
-    @Body() body: { content: string },
-    @Req() req: any,
-  ) {
-    const userId = getUserIdFromReq(req)!;
-    return this.chatClient.updateFirstMessage(
-      conversationId,
-      userId,
-      body.content,
-    );
-  }
-
-  /**
-   * Listar conversaciones del usuario
-   */
-  @Get('usage/stats')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Obtener estadÃ­sticas de uso del usuario' })
-  @ApiResponse({
-    status: 200,
-    description: 'EstadÃ­sticas de uso',
-    schema: {
-      example: {
-        todayMessages: 5,
-        todayTokens: 1024,
-        totalMessages: 50,
-        totalTokens: 10240,
-        tier: 'REGISTERED',
-        limits: {
-          messagesPerDay: 10,
-          maxTokensPerMessage: 2048,
-          canUploadImages: false,
-        },
-      },
-    },
-  })
-  async getUserStats(@Req() req: any) {
-    const userId = getUserIdFromReq(req)!;
-    return this.chatClient.getUsageStats(userId);
-  }
-
-  // ========== ENDPOINTS REST PARA GESTIÓN DE CHATS ==========
-  // (Bloque duplicado movido más arriba para evitar colisiones con ':id')
 }
