@@ -32,8 +32,12 @@ function Ensure-ComposeFile {
 }
 
 function Compose {
-  param([string]$File, [string]$Project, [string[]]$Args)
-  & docker compose -p $Project -f $File @Args
+  param([string]$File, [string]$Project, [string[]]$ComposeArgs)
+  if (-not $ComposeArgs -or $ComposeArgs.Count -eq 0) {
+    Write-WarningMsg "No se proporcionaron argumentos para docker compose"
+    return
+  }
+  & docker compose -p $Project -f $File @ComposeArgs
 }
 
 function Start-Backend {
