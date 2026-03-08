@@ -46,6 +46,12 @@ function Start-Backend {
   Write-Success "[OK] Backend iniciado"
 }
 
+function Rebuild-Backend {
+  Write-Header "`n[REBUILD BACKEND]"
+  Compose $BackendCompose $BackendProject @("up", "-d", "--build", "gateway", "users")
+  Write-Success "[OK] Backend rebuild completado"
+}
+
 function Stop-Backend {
   Write-Header "`n[DETENIENDO BACKEND]"
   Compose $BackendCompose $BackendProject @("down")
@@ -142,6 +148,7 @@ function Show-Menu {
   Write-Host "  7. Ver estado"
   Write-Host "  8. Ver logs"
   Write-Host "  9. Health checks"
+  Write-Host " 10. Rebuild gateway/users"
   Write-Host "  0. Salir"
   Write-Host ""
 }
@@ -163,6 +170,7 @@ do {
     "7" { Show-Status }
     "8" { Show-Logs }
     "9" { Health-Checks }
+    "10" { Rebuild-Backend }
     "0" { Write-Success "`nHasta luego!`n"; exit }
     default { Write-WarningMsg "Opcion invalida" }
   }
