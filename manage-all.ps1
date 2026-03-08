@@ -93,6 +93,10 @@ function Stop-Backend {
 function Start-N8n {
   Write-Header "`n[INICIANDO N8N]"
   Compose $N8nCompose $N8nProject @("up", "-d")
+  Try {
+    docker network connect saas-backend_default cloudflared-n8n | Out-Null
+  } Catch {
+  }
   Write-Success "[OK] n8n iniciado"
 }
 
