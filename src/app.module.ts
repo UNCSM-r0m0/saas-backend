@@ -40,6 +40,8 @@ import { ModelsModule } from './models/models.module';
         OLLAMA_PROXY_URL: Joi.string().optional(),
         OLLAMA_PROXY_API_KEY: Joi.string().optional(),
         NATS_URL: Joi.string().default('nats://localhost:4222'),
+        PUBLIC_MODELS: Joi.string().optional(),
+        PRO_MODELS: Joi.string().optional(),
         FREE_USER_MESSAGE_LIMIT: Joi.number().default(3),
         FREE_USER_MAX_TOKENS: Joi.number().default(512),
         REGISTERED_USER_MESSAGE_LIMIT: Joi.number().default(10),
@@ -53,7 +55,9 @@ import { ModelsModule } from './models/models.module';
         OPENAI_API_KEY: Joi.string().allow('').optional(),
         DEEPSEEK_API_KEY: Joi.string().allow('').optional(),
         MAX_FILE_SIZE_MB: Joi.number().default(10),
-        ALLOWED_FILE_TYPES: Joi.string().default('image/jpeg,image/png,image/gif,image/webp'),
+        ALLOWED_FILE_TYPES: Joi.string().default(
+          'image/jpeg,image/png,image/gif,image/webp',
+        ),
         ADMIN_EMAIL: Joi.string().default('admin@saas.com'),
         ADMIN_PASSWORD: Joi.string().default('Admin123!'),
         // Chat concurrency controls (optional)
@@ -78,4 +82,4 @@ import { ModelsModule } from './models/models.module';
   controllers: [AppController],
   providers: [AppService, UsageService],
 })
-export class AppModule { }
+export class AppModule {}
