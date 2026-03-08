@@ -78,6 +78,12 @@ function Rebuild-Service {
   Write-Success "[OK] Rebuild completado: $service"
 }
 
+function Rebuild-All-Services {
+  Write-Header "`n[REBUILD TODOS LOS SERVICIOS]"
+  Compose $BackendCompose $BackendProject @("up", "-d", "--build", "gateway", "auth", "users", "chat", "billing", "usage")
+  Write-Success "[OK] Rebuild completo de servicios"
+}
+
 function Stop-Backend {
   Write-Header "`n[DETENIENDO BACKEND]"
   Compose $BackendCompose $BackendProject @("down")
@@ -176,6 +182,7 @@ function Show-Menu {
   Write-Host "  9. Health checks"
   Write-Host " 10. Rebuild gateway/users"
   Write-Host " 11. Rebuild servicio (uno)"
+  Write-Host " 12. Rebuild todos los servicios"
   Write-Host "  0. Salir"
   Write-Host ""
 }
@@ -199,6 +206,7 @@ do {
     "9" { Health-Checks }
     "10" { Rebuild-Backend }
     "11" { Rebuild-Service }
+    "12" { Rebuild-All-Services }
     "0" { Write-Success "`nHasta luego!`n"; exit }
     default { Write-WarningMsg "Opcion invalida" }
   }
