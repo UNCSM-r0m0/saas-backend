@@ -3,6 +3,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
+import { ChatClient } from './chat.client';
 import { UsageService } from '../usage/usage.service';
 import { WsModule } from '../common/ws/ws.module';
 import { OllamaModule } from '../ollama/ollama.module';
@@ -29,8 +30,8 @@ import { AuthModule } from '../auth/auth.module';
     AuthModule,
     WsModule,
   ],
-  providers: [ChatService, ChatGateway, UsageService],
+  providers: [ChatService, ChatGateway, UsageService, ChatClient],
   controllers: [ChatController],
-  exports: [ChatService],
+  exports: [ChatService, ChatClient],
 })
-export class ChatModule { }
+export class ChatModule {}

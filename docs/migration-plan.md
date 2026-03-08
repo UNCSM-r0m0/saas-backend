@@ -33,6 +33,8 @@ Estado actual (en progreso)
 - `users` fue seleccionado como primer servicio.
 - Contratos NATS y DTOs compartidos ubicados en `libs/contracts/users`.
 - Gateway HTTP para `users` ya delega a NATS.
+- `auth` en progreso con refresh token (web + mobile) via NATS.
+- `chat` inicio de fase 1: contratos NATS y cliente gateway (`ChatClient`).
 
 Fase 2 - Extraccion por servicio (iterativa)
 Para cada dominio:
