@@ -1,9 +1,9 @@
 import {
-    Injectable,
-    Logger,
-    ForbiddenException,
-    NotFoundException,
-    BadRequestException,
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OllamaService } from '../ollama/ollama.service';
@@ -18,598 +18,740 @@ import type { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class ChatService {
-    private readonly logger = new Logger(ChatService.name);
+  private readonly logger = new Logger(ChatService.name);
 
-    constructor(
-        private prisma: PrismaService,
-        private ollamaService: OllamaService,
-        private geminiService: GeminiService,
-        private openaiService: OpenAIService,
-        private deepseekService: DeepSeekService,
-        private subscriptionsService: SubscriptionsService,
-        private usageService: UsageService,
-    ) { }
+  constructor(
+    private prisma: PrismaService,
+    private ollamaService: OllamaService,
+    private geminiService: GeminiService,
+    private openaiService: OpenAIService,
+    private deepseekService: DeepSeekService,
+    private subscriptionsService: SubscriptionsService,
+    private usageService: UsageService,
+  ) {}
 
-    /**
-     * Envía un mensaje y obtiene respuesta del modelo
-     */
-    async sendMessage(dto: SendMessageDto, userId?: string) {
-        // 1. Validar rate limiting
-        const canSend = await this.usageService.canSendMessage(
-            userId,
-            userId ? undefined : dto.anonymousId,
+  /**
+   * Envía un mensaje y obtiene respuesta del modelo
+   */
+  async sendMessage(dto: SendMessageDto, userId?: string) {
+    // 1. Validar rate limiting
+    const canSend = await this.usageService.canSendMessage(
+      userId,
+      userId ? undefined : dto.anonymousId,
+    );
+
+    if (!canSend.allowed) {
+      throw new ForbiddenException(
+        `Has alcanzado tu límite de ${canSend.limit} mensajes por día. ${
+          !userId
+            ? 'Regístrate para obtener más mensajes.'
+            : canSend.limit === 3
+              ? 'Actualiza a Premium para más mensajes.'
+              : ''
+        }`,
+      );
+    }
+
+    // 2. Obtener tier del usuario
+    let tier: SubscriptionTier = SubscriptionTier.FREE;
+    if (userId) {
+      const subscription =
+        await this.subscriptionsService.getOrCreateSubscription(userId);
+      if (subscription) {
+        tier = subscription.tier;
+      }
+    }
+
+    const limits = this.subscriptionsService.getUserLimits(tier);
+
+    // 3. Obtener o crear chat
+    let chatId = dto.conversationId; // Mantenemos el nombre del DTO por compatibilidad
+    let chat: any = null;
+
+    if (userId && !chatId) {
+      // Crear nuevo chat para usuario registrado
+      chat = await this.prisma.chat.create({
+        data: {
+          ownerId: userId,
+          title: this.generateTitle(dto.content),
+          isAnonymous: false,
+        },
+      });
+      chatId = chat.id;
+    } else if (!userId) {
+      // Usuarios anónimos: no guardan chat persistente
+      chatId = 'anonymous';
+    } else if (userId && chatId) {
+      // Buscar chat existente
+      chat = await this.prisma.chat.findUnique({
+        where: { id: chatId },
+      });
+
+      // Si no existe el chat, crear uno nuevo
+      if (!chat) {
+        console.log(`🔍 ChatService: Chat ${chatId} no existe, creando nuevo`);
+        chat = await this.prisma.chat.create({
+          data: {
+            id: chatId,
+            ownerId: userId,
+            title: this.generateTitle(dto.content),
+            isAnonymous: false,
+          },
+        });
+      }
+    }
+
+    // 4. Guardar mensaje del usuario (solo si es registrado)
+    let userMessage;
+    if (userId && chatId !== 'anonymous') {
+      userMessage = await this.prisma.message.create({
+        data: {
+          chatId: chatId!,
+          userId,
+          role: MessageRole.USER,
+          content: dto.content,
+        },
+      });
+    }
+
+    // 5. Obtener historial del chat (solo registrados)
+    const history = userId ? await this.getChatHistory(chatId!) : [];
+
+    // 6. Determinar modelo a usar (por defecto: ollama)
+    const selectedModel = (dto.model || 'ollama').trim();
+
+    // 7. Generar respuesta del modelo
+    let aiResponse = '';
+    let tokensUsed = 0;
+    let modelUsed = '';
+
+    // 7.a. Modelos premium (requieren suscripción PREMIUM)
+    const isPremiumRequested = ['gemini', 'openai', 'deepseek'].includes(
+      selectedModel,
+    );
+    if (isPremiumRequested && tier !== SubscriptionTier.PREMIUM) {
+      throw new ForbiddenException(
+        'Este modelo es Premium. Actualiza tu suscripción para usarlo.',
+      );
+    }
+
+    if (selectedModel === 'gemini') {
+      const geminiResponse = await this.geminiService.generateResponse(
+        dto.content,
+        {
+          maxTokens: limits.maxTokensPerMessage,
+          temperature: 0.7,
+          systemPrompt: 'Eres un asistente de IA útil y amigable.',
+        },
+      );
+      aiResponse = geminiResponse.response;
+      tokensUsed = geminiResponse.tokensUsed;
+      modelUsed = geminiResponse.model;
+    } else if (selectedModel === 'openai') {
+      // No pasar 'model' para que use el modelo configurado dinámicamente (LLM Studio o OpenAI Cloud)
+      this.logger.log(
+        `🤖 Generando respuesta con OpenAI/LLM Studio para chat ${chatId}`,
+      );
+      try {
+        const openaiResponse = await this.openaiService.generateResponse(
+          dto.content,
+          {
+            maxTokens: limits.maxTokensPerMessage,
+            temperature: 0.7,
+            systemPrompt: 'Eres un asistente de IA útil y amigable.',
+            // model se detecta automáticamente: LLM Studio si está configurado, sino OpenAI Cloud
+          },
+        );
+        aiResponse = openaiResponse.response;
+        tokensUsed = openaiResponse.tokensUsed;
+        modelUsed = openaiResponse.model;
+        this.logger.log(
+          `✅ Respuesta OpenAI/LLM Studio generada: ${aiResponse.length} caracteres, ${tokensUsed} tokens`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `❌ Error generando respuesta OpenAI/LLM Studio:`,
+          error,
+        );
+        throw error;
+      }
+    } else if (selectedModel === 'deepseek') {
+      const deepseekResponse = await this.deepseekService.generateResponse(
+        dto.content,
+        {
+          maxTokens: limits.maxTokensPerMessage,
+          temperature: 0.7,
+          systemPrompt: 'Eres un asistente de IA útil y amigable.',
+          model: 'deepseek-chat',
+        },
+      );
+      aiResponse = deepseekResponse.response;
+      tokensUsed = deepseekResponse.tokensUsed;
+      modelUsed = deepseekResponse.model;
+    } else {
+      // 7.d. Ollama (modelo local). Permite especificar modelo concreto.
+      const ollamaMessages = [
+        ...history.map((m) => ({
+          role: m.role as 'user' | 'assistant' | 'system',
+          content: m.content,
+        })),
+        { role: 'user' as const, content: dto.content },
+      ];
+      // Determinar modelo específico de Ollama si viene prefijado o directo
+      let ollamaModel: string | undefined = selectedModel;
+      if (selectedModel.startsWith('ollama-')) {
+        ollamaModel = selectedModel.replace('ollama-', '');
+      } else if (selectedModel === 'ollama') {
+        // No especificar para usar el modelo por defecto configurado en OllamaService
+        ollamaModel = undefined;
+      }
+
+      try {
+        const ollamaResponse = await this.ollamaService.generate(
+          ollamaMessages,
+          limits.maxTokensPerMessage,
+          ollamaModel,
+        );
+        aiResponse = ollamaResponse.content;
+        tokensUsed = ollamaResponse.tokensUsed;
+        modelUsed = ollamaModel || 'ollama-default';
+      } catch (error: any) {
+        const fallbackModel = this.resolveOllamaFallbackModel(ollamaModel);
+        if (!fallbackModel || !this.isModelMemoryError(error)) {
+          throw error;
+        }
+
+        this.logger.warn(
+          `⚠️ Ollama sin memoria para modelo ${ollamaModel || 'default'}, reintentando con fallback ${fallbackModel}`,
         );
 
-        if (!canSend.allowed) {
-            throw new ForbiddenException(
-                `Has alcanzado tu límite de ${canSend.limit} mensajes por día. ${!userId
-                    ? 'Regístrate para obtener más mensajes.'
-                    : canSend.limit === 3
-                        ? 'Actualiza a Premium para más mensajes.'
-                        : ''
-                }`,
-            );
-        }
-
-        // 2. Obtener tier del usuario
-        let tier: SubscriptionTier = SubscriptionTier.FREE;
-        if (userId) {
-            const subscription = await this.subscriptionsService.getOrCreateSubscription(userId);
-            if (subscription) {
-                tier = subscription.tier;
-            }
-        }
-
-        const limits = this.subscriptionsService.getUserLimits(tier);
-
-        // 3. Obtener o crear chat
-        let chatId = dto.conversationId; // Mantenemos el nombre del DTO por compatibilidad
-        let chat: any = null;
-
-        if (userId && !chatId) {
-            // Crear nuevo chat para usuario registrado
-            chat = await this.prisma.chat.create({
-                data: {
-                    ownerId: userId,
-                    title: this.generateTitle(dto.content),
-                    isAnonymous: false,
-                },
-            });
-            chatId = chat.id;
-        } else if (!userId) {
-            // Usuarios anónimos: no guardan chat persistente
-            chatId = 'anonymous';
-        } else if (userId && chatId) {
-            // Buscar chat existente
-            chat = await this.prisma.chat.findUnique({
-                where: { id: chatId }
-            });
-
-            // Si no existe el chat, crear uno nuevo
-            if (!chat) {
-                console.log(`🔍 ChatService: Chat ${chatId} no existe, creando nuevo`);
-                chat = await this.prisma.chat.create({
-                    data: {
-                        id: chatId,
-                        ownerId: userId,
-                        title: this.generateTitle(dto.content),
-                        isAnonymous: false,
-                    },
-                });
-            }
-        }
-
-        // 4. Guardar mensaje del usuario (solo si es registrado)
-        let userMessage;
-        if (userId && chatId !== 'anonymous') {
-            userMessage = await this.prisma.message.create({
-                data: {
-                    chatId: chatId!,
-                    userId,
-                    role: MessageRole.USER,
-                    content: dto.content,
-                },
-            });
-        }
-
-        // 5. Obtener historial del chat (solo registrados)
-        const history = userId
-            ? await this.getChatHistory(chatId!)
-            : [];
-
-        // 6. Determinar modelo a usar (por defecto: ollama)
-        const selectedModel = (dto.model || 'ollama').trim();
-
-        // 7. Generar respuesta del modelo
-        let aiResponse = '';
-        let tokensUsed = 0;
-        let modelUsed = '';
-
-        // 7.a. Modelos premium (requieren suscripción PREMIUM)
-        const isPremiumRequested = ['gemini', 'openai', 'deepseek'].includes(selectedModel);
-        if (isPremiumRequested && tier !== SubscriptionTier.PREMIUM) {
-            throw new ForbiddenException('Este modelo es Premium. Actualiza tu suscripción para usarlo.');
-        }
-
-        if (selectedModel === 'gemini') {
-            const geminiResponse = await this.geminiService.generateResponse(dto.content, {
-                maxTokens: limits.maxTokensPerMessage,
-                temperature: 0.7,
-                systemPrompt: 'Eres un asistente de IA útil y amigable.',
-            });
-            aiResponse = geminiResponse.response;
-            tokensUsed = geminiResponse.tokensUsed;
-            modelUsed = geminiResponse.model;
-        } else if (selectedModel === 'openai') {
-            // No pasar 'model' para que use el modelo configurado dinámicamente (LLM Studio o OpenAI Cloud)
-            this.logger.log(`🤖 Generando respuesta con OpenAI/LLM Studio para chat ${chatId}`);
-            try {
-                const openaiResponse = await this.openaiService.generateResponse(dto.content, {
-                    maxTokens: limits.maxTokensPerMessage,
-                    temperature: 0.7,
-                    systemPrompt: 'Eres un asistente de IA útil y amigable.',
-                    // model se detecta automáticamente: LLM Studio si está configurado, sino OpenAI Cloud
-                });
-                aiResponse = openaiResponse.response;
-                tokensUsed = openaiResponse.tokensUsed;
-                modelUsed = openaiResponse.model;
-                this.logger.log(`✅ Respuesta OpenAI/LLM Studio generada: ${aiResponse.length} caracteres, ${tokensUsed} tokens`);
-            } catch (error) {
-                this.logger.error(`❌ Error generando respuesta OpenAI/LLM Studio:`, error);
-                throw error;
-            }
-        } else if (selectedModel === 'deepseek') {
-            const deepseekResponse = await this.deepseekService.generateResponse(dto.content, {
-                maxTokens: limits.maxTokensPerMessage,
-                temperature: 0.7,
-                systemPrompt: 'Eres un asistente de IA útil y amigable.',
-                model: 'deepseek-chat',
-            });
-            aiResponse = deepseekResponse.response;
-            tokensUsed = deepseekResponse.tokensUsed;
-            modelUsed = deepseekResponse.model;
-        } else {
-            // 7.d. Ollama (modelo local). Permite especificar modelo concreto.
-            const ollamaMessages = [
-                ...history.map((m) => ({
-                    role: m.role as 'user' | 'assistant' | 'system',
-                    content: m.content,
-                })),
-                { role: 'user' as const, content: dto.content },
-            ];
-            // Determinar modelo específico de Ollama si viene prefijado o directo
-            let ollamaModel: string | undefined = selectedModel;
-            if (selectedModel.startsWith('ollama-')) {
-                ollamaModel = selectedModel.replace('ollama-', '');
-            } else if (selectedModel === 'ollama') {
-                // No especificar para usar el modelo por defecto configurado en OllamaService
-                ollamaModel = undefined;
-            }
-
-            const ollamaResponse = await this.ollamaService.generate(
-                ollamaMessages,
-                limits.maxTokensPerMessage,
-                ollamaModel,
-            );
-            aiResponse = ollamaResponse.content;
-            tokensUsed = ollamaResponse.tokensUsed;
-            modelUsed = ollamaModel || 'ollama-default';
-        }
-
-        // 8. Guardar respuesta del asistente (solo si es registrado)
-        let assistantMessage;
-        if (userId && chatId !== 'anonymous') {
-            assistantMessage = await this.prisma.message.create({
-                data: {
-                    chatId: chatId!,
-                    userId,
-                    role: MessageRole.ASSISTANT,
-                    content: aiResponse,
-                    tokensUsed,
-                    model: modelUsed,
-                },
-            });
-
-            // Si el título es el placeholder, intenta actualizarlo con el primer mensaje del usuario
-            if (chat && chat.title === 'Nueva conversación') {
-                const newTitle = this.generateTitle(dto.content);
-                if (newTitle && newTitle !== 'Nueva conversación') {
-                    chat = await this.prisma.chat.update({
-                        where: { id: chatId! },
-                        data: { title: newTitle }
-                    });
-                }
-            }
-        }
-
-        // 9. Incrementar contador de uso
-        await this.usageService.incrementMessageCount(
-            tokensUsed,
-            userId,
-            userId ? undefined : dto.anonymousId,
+        const fallbackResponse = await this.ollamaService.generate(
+          ollamaMessages,
+          limits.maxTokensPerMessage,
+          fallbackModel,
         );
-
-        // 10. Retornar respuesta en formato esperado por el frontend
-        const response = {
-            conversationId: chatId !== 'anonymous' ? chatId : 'temp-chat-id',
-            message: {
-                id: assistantMessage?.id || 'temp-assistant-id',
-                role: 'assistant',
-                content: aiResponse,
-                createdAt: assistantMessage?.createdAt || new Date(),
-                tokensUsed,
-            },
-            remaining: canSend.remaining - 1,
-            limit: canSend.limit,
-            tier: tier,
-        };
-
-        this.logger.log(`📤 Retornando respuesta para chat ${chatId}: ${aiResponse.length} caracteres, ${tokensUsed} tokens`);
-        return response;
+        aiResponse = fallbackResponse.content;
+        tokensUsed = fallbackResponse.tokensUsed;
+        modelUsed = fallbackModel;
+      }
     }
 
-    /**
-     * Obtiene el historial de un chat
-     */
-    async getChatHistory(chatId: string) {
-        try {
-            const messages = await this.prisma.message.findMany({
-                where: { chatId },
-                orderBy: { createdAt: 'asc' },
-                take: 20, // Últimos 20 mensajes para contexto
-                select: {
-                    role: true,
-                    content: true,
-                },
-            });
+    // 8. Guardar respuesta del asistente (solo si es registrado)
+    let assistantMessage;
+    if (userId && chatId !== 'anonymous') {
+      assistantMessage = await this.prisma.message.create({
+        data: {
+          chatId: chatId!,
+          userId,
+          role: MessageRole.ASSISTANT,
+          content: aiResponse,
+          tokensUsed,
+          model: modelUsed,
+        },
+      });
 
-            // Convertir a formato Ollama
-            return messages.map(msg => ({
-                role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
-                content: msg.content,
-            }));
-        } catch (error) {
-            this.logger.error('Error obteniendo historial:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Lista chats de un usuario
-     */
-    async getUserChats(userId: string) {
-        console.log(`🔍 [ChatService.getUserChats] Buscando chats para userId: ${userId}`);
-
-        try {
-            const chats = await this.prisma.chat.findMany({
-                where: { ownerId: userId },
-                orderBy: { updatedAt: 'desc' },
-                include: {
-                    messages: {
-                        take: 1,
-                        orderBy: { createdAt: 'desc' },
-                    },
-                    _count: {
-                        select: { messages: true },
-                    },
-                },
-            });
-
-            console.log(`📊 [ChatService.getUserChats] Query ejecutada. Resultados: ${chats.length}`);
-            console.log(`📋 [ChatService.getUserChats] Chats:`, chats.map(c => ({ id: c.id, title: c.title, messageCount: c._count.messages })));
-
-            return chats;
-        } catch (error) {
-            console.error(`❌ [ChatService.getUserChats] Error en query:`, error);
-            throw error;
-        }
-    }
-
-    /**
-     * Obtiene un chat específico con todos sus mensajes
-     */
-    /**
- * Obtiene un chat específico con todos sus mensajes
- * - 404 si no existe
- * - 404 (mensaje claro) si no pertenece al usuario autenticado
- */
-    async getChat(chatId: string, userId: string) {
-        // Primero verificar existencia para diferenciar los casos
-        const exists = await this.prisma.chat.findUnique({
-            where: { id: chatId },
-            select: { id: true, ownerId: true },
-        });
-
-        if (!exists) {
-            throw new NotFoundException({
-                message: 'Chat no encontrado',
-                errorCode: 'CHAT_NOT_FOUND',
-            } as any);
-        }
-
-        if (exists.ownerId !== userId) {
-            // No revelamos información sensible (404 en lugar de 403), pero damos contexto
-            throw new NotFoundException({
-                message: 'Chat no pertenece al usuario autenticado',
-                errorCode: 'CHAT_NOT_FOUND_FOR_USER',
-            } as any);
-        }
-
-        const chat = await this.prisma.chat.findUnique({
-            where: { id: chatId },
-            include: { messages: { orderBy: { createdAt: 'asc' } } },
-        });
-
-        if (!chat) {
-            throw new NotFoundException({
-                message: 'Chat no encontrado',
-                errorCode: 'CHAT_NOT_FOUND',
-            } as any);
-        }
-
-        return chat;
-    }
-
-    /**
-     * Elimina un chat
-     */
-    async deleteChat(chatId: string, userId: string) {
-        const chat = await this.prisma.chat.findFirst({
-            where: {
-                id: chatId,
-                ownerId: userId,
-            },
-        });
-
-        if (!chat) {
-            throw new NotFoundException('Chat no encontrado');
-        }
-
-        await this.prisma.chat.delete({
-            where: { id: chatId },
-        });
-
-        return { message: 'Chat eliminado' };
-    }
-
-    /**
-     * Crea un nuevo chat
-     */
-    async createChat(ownerId?: string, title?: string): Promise<any> {
-        console.log(`🔍 [ChatService.createChat] Creando chat para ownerId: ${ownerId}, title: ${title || 'Nueva conversación'}`);
-
-        try {
-            const chat = await this.prisma.chat.create({
-                data: {
-                    title: title || 'Nueva conversación',
-                    isAnonymous: !ownerId,
-                    ownerId: ownerId,
-                },
-            });
-
-            console.log(`✅ [ChatService.createChat] Chat creado: ${chat.id} - ${chat.title}`);
-            return chat;
-        } catch (error) {
-            console.error(`❌ [ChatService.createChat] Error:`, error);
-            this.logger.error('Error creando chat:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Guarda un mensaje del usuario
-     */
-    async saveUserMessage(chatId: string, userId: string, content: string) {
-        return this.prisma.message.create({
-            data: {
-                chatId,
-                userId,
-                role: MessageRole.USER,
-                content,
-            },
-        });
-    }
-
-    /**
-     * Guarda un mensaje del asistente
-     */
-    async saveAssistantMessage(chatId: string, userId: string | null, content: string) {
-        return this.prisma.message.create({
-            data: {
-                chatId,
-                userId,
-                role: MessageRole.ASSISTANT,
-                content,
-            },
-        });
-    }
-
-    /**
-     * Actualiza el primer mensaje del usuario y regenera el título del chat
-     */
-    async updateFirstMessageAndTitle(chatId: string, userId: string, newContent: string) {
-        // Verificar que el chat sea del usuario
-        const chat = await this.prisma.chat.findFirst({
-            where: { id: chatId, ownerId: userId },
-        });
-        if (!chat) {
-            throw new ForbiddenException('No tienes acceso a este chat');
-        }
-
-        // Buscar primer mensaje del usuario en ese chat
-        const firstUserMessage = await this.prisma.message.findFirst({
-            where: { chatId, userId, role: MessageRole.USER },
-            orderBy: { createdAt: 'asc' },
-        });
-        if (!firstUserMessage) {
-            throw new BadRequestException('No hay mensaje de usuario para actualizar');
-        }
-
-        // Actualizar contenido del mensaje
-        await this.prisma.message.update({
-            where: { id: firstUserMessage.id },
-            data: { content: newContent },
-        });
-
-        // Regenerar título con el nuevo contenido
-        const newTitle = this.generateTitle(newContent);
-        await this.prisma.chat.update({
-            where: { id: chatId },
+      // Si el título es el placeholder, intenta actualizarlo con el primer mensaje del usuario
+      if (chat && chat.title === 'Nueva conversación') {
+        const newTitle = this.generateTitle(dto.content);
+        if (newTitle && newTitle !== 'Nueva conversación') {
+          chat = await this.prisma.chat.update({
+            where: { id: chatId! },
             data: { title: newTitle },
-        });
-
-        return { success: true, data: { title: newTitle }, message: 'Mensaje y título actualizados' };
-    }
-
-    /**
-     * Actualiza el título de un chat
-     */
-    async updateChatTitle(chatId: string, userId: string, title: string) {
-        const chat = await this.prisma.chat.findFirst({
-            where: {
-                id: chatId,
-                ownerId: userId,
-            },
-        });
-
-        if (!chat) {
-            throw new NotFoundException('Chat no encontrado');
+          });
         }
-
-        return this.prisma.chat.update({
-            where: { id: chatId },
-            data: { title },
-        });
+      }
     }
 
-    /**
-     * Obtiene estadísticas de uso del usuario
-     */
-    async getUserUsageStats(userId: string) {
-        const stats = await this.usageService.getUserStats(userId);
-        const subscription = await this.subscriptionsService.getOrCreateSubscription(userId);
-        const limits = this.subscriptionsService.getUserLimits(subscription.tier);
+    // 9. Incrementar contador de uso
+    await this.usageService.incrementMessageCount(
+      tokensUsed,
+      userId,
+      userId ? undefined : dto.anonymousId,
+    );
 
-        return {
-            ...stats,
-            tier: subscription.tier,
-            limits: {
-                messagesPerDay: limits.messagesPerDay,
-                maxTokensPerMessage: limits.maxTokensPerMessage,
-                canUploadImages: limits.canUploadImages,
-            },
-        };
+    // 10. Retornar respuesta en formato esperado por el frontend
+    const response = {
+      conversationId: chatId !== 'anonymous' ? chatId : 'temp-chat-id',
+      message: {
+        id: assistantMessage?.id || 'temp-assistant-id',
+        role: 'assistant',
+        content: aiResponse,
+        createdAt: assistantMessage?.createdAt || new Date(),
+        tokensUsed,
+      },
+      remaining: canSend.remaining - 1,
+      limit: canSend.limit,
+      tier: tier,
+    };
+
+    this.logger.log(
+      `📤 Retornando respuesta para chat ${chatId}: ${aiResponse.length} caracteres, ${tokensUsed} tokens`,
+    );
+    return response;
+  }
+
+  /**
+   * Obtiene el historial de un chat
+   */
+  async getChatHistory(chatId: string) {
+    try {
+      const messages = await this.prisma.message.findMany({
+        where: { chatId },
+        orderBy: { createdAt: 'asc' },
+        take: 20, // Últimos 20 mensajes para contexto
+        select: {
+          role: true,
+          content: true,
+        },
+      });
+
+      // Convertir a formato Ollama
+      return messages.map((msg) => ({
+        role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
+        content: msg.content,
+      }));
+    } catch (error) {
+      this.logger.error('Error obteniendo historial:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Lista chats de un usuario
+   */
+  async getUserChats(userId: string) {
+    console.log(
+      `🔍 [ChatService.getUserChats] Buscando chats para userId: ${userId}`,
+    );
+
+    try {
+      const chats = await this.prisma.chat.findMany({
+        where: { ownerId: userId },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          messages: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+          },
+          _count: {
+            select: { messages: true },
+          },
+        },
+      });
+
+      console.log(
+        `📊 [ChatService.getUserChats] Query ejecutada. Resultados: ${chats.length}`,
+      );
+      console.log(
+        `📋 [ChatService.getUserChats] Chats:`,
+        chats.map((c) => ({
+          id: c.id,
+          title: c.title,
+          messageCount: c._count.messages,
+        })),
+      );
+
+      return chats;
+    } catch (error) {
+      console.error(`❌ [ChatService.getUserChats] Error en query:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene un chat específico con todos sus mensajes
+   */
+  /**
+   * Obtiene un chat específico con todos sus mensajes
+   * - 404 si no existe
+   * - 404 (mensaje claro) si no pertenece al usuario autenticado
+   */
+  async getChat(chatId: string, userId: string) {
+    // Primero verificar existencia para diferenciar los casos
+    const exists = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: { id: true, ownerId: true },
+    });
+
+    if (!exists) {
+      throw new NotFoundException({
+        message: 'Chat no encontrado',
+        errorCode: 'CHAT_NOT_FOUND',
+      } as any);
     }
 
-    /**
-     * Lista chats (alias para compatibilidad)
-     */
-    async listChats(ownerId?: string): Promise<any[]> {
-        console.log(`🔍 [ChatService.listChats] Iniciando para ownerId: ${ownerId}`);
-
-        if (!ownerId) {
-            console.log(`⚠️ [ChatService.listChats] ownerId es undefined/null`);
-            return [];
-        }
-
-        try {
-            const chats = await this.getUserChats(ownerId);
-            console.log(`📊 [ChatService.listChats] Chats encontrados: ${Array.isArray(chats) ? chats.length : 'n/a'}`);
-            console.log(`📋 [ChatService.listChats] Datos:`, chats);
-            return chats;
-        } catch (error) {
-            console.error(`❌ [ChatService.listChats] Error:`, error);
-            throw error;
-        }
+    if (exists.ownerId !== userId) {
+      // No revelamos información sensible (404 en lugar de 403), pero damos contexto
+      throw new NotFoundException({
+        message: 'Chat no pertenece al usuario autenticado',
+        errorCode: 'CHAT_NOT_FOUND_FOR_USER',
+      } as any);
     }
 
-    /**
-     * Renombra un chat
-     */
-    async renameChat(chatId: string, title: string, userId?: string): Promise<void> {
-        if (!userId) {
-            throw new ForbiddenException('Usuario requerido para renombrar chat');
-        }
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      include: { messages: { orderBy: { createdAt: 'asc' } } },
+    });
 
-        const chat = await this.prisma.chat.findFirst({
-            where: {
-                id: chatId,
-                ownerId: userId,
-            }
-        });
-
-        if (!chat) {
-            throw new NotFoundException('Chat no encontrado o sin permisos');
-        }
-
-        await this.prisma.chat.update({
-            where: { id: chatId },
-            data: { title, updatedAt: new Date() },
-        });
+    if (!chat) {
+      throw new NotFoundException({
+        message: 'Chat no encontrado',
+        errorCode: 'CHAT_NOT_FOUND',
+      } as any);
     }
 
-    /**
-     * Guarda mensaje de usuario en chat (alias para compatibilidad)
-     */
-    async saveUserMessageToChat(chatId: string, userId: string | null, content: string, model?: string): Promise<any> {
-        console.log(`🔍 [ChatService.saveUserMessageToChat] Guardando mensaje para chatId: ${chatId}, userId: ${userId}`);
+    return chat;
+  }
 
-        const message = await this.prisma.message.create({
-            data: {
-                chatId,
-                userId: userId ?? null,
-                role: MessageRole.USER,
-                content,
-                model: model || 'qwen2.5-coder:7b',
-            },
-        });
+  /**
+   * Elimina un chat
+   */
+  async deleteChat(chatId: string, userId: string) {
+    const chat = await this.prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        ownerId: userId,
+      },
+    });
 
-        console.log(`✅ [ChatService.saveUserMessageToChat] Mensaje guardado: ${message.id}`);
-
-        // Actualizar timestamp del chat
-        await this.prisma.chat.update({
-            where: { id: chatId },
-            data: { updatedAt: new Date() },
-        });
-
-        console.log(`✅ [ChatService.saveUserMessageToChat] Timestamp del chat actualizado`);
-
-        return message;
+    if (!chat) {
+      throw new NotFoundException('Chat no encontrado');
     }
 
-    /**
-     * Guarda mensaje de assistant en chat (alias para compatibilidad)
-     */
-    async saveAssistantMessageToChat(chatId: string, userId: string | null, content: string, model?: string): Promise<any> {
-        const message = await this.prisma.message.create({
-            data: {
-                chatId,
-                userId: null, // Assistant no tiene userId
-                role: MessageRole.ASSISTANT,
-                content,
-                model: model || 'qwen2.5-coder:7b',
-            },
-        });
+    await this.prisma.chat.delete({
+      where: { id: chatId },
+    });
 
-        // Actualizar timestamp del chat
-        await this.prisma.chat.update({
-            where: { id: chatId },
-            data: { updatedAt: new Date() },
-        });
+    return { message: 'Chat eliminado' };
+  }
 
-        return message;
+  /**
+   * Crea un nuevo chat
+   */
+  async createChat(ownerId?: string, title?: string): Promise<any> {
+    console.log(
+      `🔍 [ChatService.createChat] Creando chat para ownerId: ${ownerId}, title: ${title || 'Nueva conversación'}`,
+    );
+
+    try {
+      const chat = await this.prisma.chat.create({
+        data: {
+          title: title || 'Nueva conversación',
+          isAnonymous: !ownerId,
+          ownerId: ownerId,
+        },
+      });
+
+      console.log(
+        `✅ [ChatService.createChat] Chat creado: ${chat.id} - ${chat.title}`,
+      );
+      return chat;
+    } catch (error) {
+      console.error(`❌ [ChatService.createChat] Error:`, error);
+      this.logger.error('Error creando chat:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Guarda un mensaje del usuario
+   */
+  async saveUserMessage(chatId: string, userId: string, content: string) {
+    return this.prisma.message.create({
+      data: {
+        chatId,
+        userId,
+        role: MessageRole.USER,
+        content,
+      },
+    });
+  }
+
+  /**
+   * Guarda un mensaje del asistente
+   */
+  async saveAssistantMessage(
+    chatId: string,
+    userId: string | null,
+    content: string,
+  ) {
+    return this.prisma.message.create({
+      data: {
+        chatId,
+        userId,
+        role: MessageRole.ASSISTANT,
+        content,
+      },
+    });
+  }
+
+  /**
+   * Actualiza el primer mensaje del usuario y regenera el título del chat
+   */
+  async updateFirstMessageAndTitle(
+    chatId: string,
+    userId: string,
+    newContent: string,
+  ) {
+    // Verificar que el chat sea del usuario
+    const chat = await this.prisma.chat.findFirst({
+      where: { id: chatId, ownerId: userId },
+    });
+    if (!chat) {
+      throw new ForbiddenException('No tienes acceso a este chat');
     }
 
-    /**
-     * Genera un título basado en el contenido del mensaje
-     */
-    private generateTitle(content: string): string {
-        // Tomar las primeras 50 caracteres y limpiar
-        const cleanContent = content.trim().replace(/\n/g, ' ');
-        if (cleanContent.length <= 50) {
-            return cleanContent;
-        }
-        return cleanContent.substring(0, 47) + '...';
+    // Buscar primer mensaje del usuario en ese chat
+    const firstUserMessage = await this.prisma.message.findFirst({
+      where: { chatId, userId, role: MessageRole.USER },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!firstUserMessage) {
+      throw new BadRequestException(
+        'No hay mensaje de usuario para actualizar',
+      );
     }
+
+    // Actualizar contenido del mensaje
+    await this.prisma.message.update({
+      where: { id: firstUserMessage.id },
+      data: { content: newContent },
+    });
+
+    // Regenerar título con el nuevo contenido
+    const newTitle = this.generateTitle(newContent);
+    await this.prisma.chat.update({
+      where: { id: chatId },
+      data: { title: newTitle },
+    });
+
+    return {
+      success: true,
+      data: { title: newTitle },
+      message: 'Mensaje y título actualizados',
+    };
+  }
+
+  /**
+   * Actualiza el título de un chat
+   */
+  async updateChatTitle(chatId: string, userId: string, title: string) {
+    const chat = await this.prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        ownerId: userId,
+      },
+    });
+
+    if (!chat) {
+      throw new NotFoundException('Chat no encontrado');
+    }
+
+    return this.prisma.chat.update({
+      where: { id: chatId },
+      data: { title },
+    });
+  }
+
+  /**
+   * Obtiene estadísticas de uso del usuario
+   */
+  async getUserUsageStats(userId: string) {
+    const stats = await this.usageService.getUserStats(userId);
+    const subscription =
+      await this.subscriptionsService.getOrCreateSubscription(userId);
+    const limits = this.subscriptionsService.getUserLimits(subscription.tier);
+
+    return {
+      ...stats,
+      tier: subscription.tier,
+      limits: {
+        messagesPerDay: limits.messagesPerDay,
+        maxTokensPerMessage: limits.maxTokensPerMessage,
+        canUploadImages: limits.canUploadImages,
+      },
+    };
+  }
+
+  /**
+   * Lista chats (alias para compatibilidad)
+   */
+  async listChats(ownerId?: string): Promise<any[]> {
+    console.log(
+      `🔍 [ChatService.listChats] Iniciando para ownerId: ${ownerId}`,
+    );
+
+    if (!ownerId) {
+      console.log(`⚠️ [ChatService.listChats] ownerId es undefined/null`);
+      return [];
+    }
+
+    try {
+      const chats = await this.getUserChats(ownerId);
+      console.log(
+        `📊 [ChatService.listChats] Chats encontrados: ${Array.isArray(chats) ? chats.length : 'n/a'}`,
+      );
+      console.log(`📋 [ChatService.listChats] Datos:`, chats);
+      return chats;
+    } catch (error) {
+      console.error(`❌ [ChatService.listChats] Error:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Renombra un chat
+   */
+  async renameChat(
+    chatId: string,
+    title: string,
+    userId?: string,
+  ): Promise<void> {
+    if (!userId) {
+      throw new ForbiddenException('Usuario requerido para renombrar chat');
+    }
+
+    const chat = await this.prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        ownerId: userId,
+      },
+    });
+
+    if (!chat) {
+      throw new NotFoundException('Chat no encontrado o sin permisos');
+    }
+
+    await this.prisma.chat.update({
+      where: { id: chatId },
+      data: { title, updatedAt: new Date() },
+    });
+  }
+
+  /**
+   * Guarda mensaje de usuario en chat (alias para compatibilidad)
+   */
+  async saveUserMessageToChat(
+    chatId: string,
+    userId: string | null,
+    content: string,
+    model?: string,
+  ): Promise<any> {
+    console.log(
+      `🔍 [ChatService.saveUserMessageToChat] Guardando mensaje para chatId: ${chatId}, userId: ${userId}`,
+    );
+
+    const message = await this.prisma.message.create({
+      data: {
+        chatId,
+        userId: userId ?? null,
+        role: MessageRole.USER,
+        content,
+        model: model || 'qwen2.5-coder:7b',
+      },
+    });
+
+    console.log(
+      `✅ [ChatService.saveUserMessageToChat] Mensaje guardado: ${message.id}`,
+    );
+
+    // Actualizar timestamp del chat
+    await this.prisma.chat.update({
+      where: { id: chatId },
+      data: { updatedAt: new Date() },
+    });
+
+    console.log(
+      `✅ [ChatService.saveUserMessageToChat] Timestamp del chat actualizado`,
+    );
+
+    return message;
+  }
+
+  /**
+   * Guarda mensaje de assistant en chat (alias para compatibilidad)
+   */
+  async saveAssistantMessageToChat(
+    chatId: string,
+    userId: string | null,
+    content: string,
+    model?: string,
+  ): Promise<any> {
+    const message = await this.prisma.message.create({
+      data: {
+        chatId,
+        userId: null, // Assistant no tiene userId
+        role: MessageRole.ASSISTANT,
+        content,
+        model: model || 'qwen2.5-coder:7b',
+      },
+    });
+
+    // Actualizar timestamp del chat
+    await this.prisma.chat.update({
+      where: { id: chatId },
+      data: { updatedAt: new Date() },
+    });
+
+    return message;
+  }
+
+  /**
+   * Genera un título basado en el contenido del mensaje
+   */
+  private generateTitle(content: string): string {
+    // Tomar las primeras 50 caracteres y limpiar
+    const cleanContent = content.trim().replace(/\n/g, ' ');
+    if (cleanContent.length <= 50) {
+      return cleanContent;
+    }
+    return cleanContent.substring(0, 47) + '...';
+  }
+
+  private resolveOllamaFallbackModel(
+    currentModel?: string,
+  ): string | undefined {
+    const normalize = (value?: string) => {
+      if (!value) return undefined;
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+      return trimmed.startsWith('ollama-')
+        ? trimmed.replace('ollama-', '')
+        : trimmed;
+    };
+
+    const firstFrom = (raw?: string) =>
+      normalize(
+        raw
+          ?.split(',')
+          .map((m) => m.trim())
+          .filter(Boolean)[0],
+      );
+
+    const candidates = [
+      normalize(process.env.OLLAMA_FALLBACK_MODEL),
+      firstFrom(process.env.PUBLIC_MODELS),
+      firstFrom(process.env.PRO_MODELS),
+    ].filter(Boolean) as string[];
+
+    const normalizedCurrent = normalize(currentModel);
+    return candidates.find((candidate) => candidate !== normalizedCurrent);
+  }
+
+  private isModelMemoryError(error: any): boolean {
+    const text = [
+      error?.message,
+      error?.response,
+      error?.cause?.message,
+      error?.cause?.response,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return (
+      text.includes('requires more system memory') ||
+      text.includes('out of memory')
+    );
+  }
 }
-

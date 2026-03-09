@@ -42,6 +42,18 @@ Este documento define lo que el frontend (`r3-chat`) debe implementar para mante
     - `{ finished: true, conversationId: string }` (fin)
     - `{ error: 'LIMIT_EXCEEDED' | 'PREMIUM_REQUIRED' | 'STREAM_ERROR', message: string }`
 
+### Streaming WS (socket namespace `/chat`)
+
+- eventos principales esperados:
+  - `responseStart`: `{ chatId, messageId, ... }`
+  - `responseChunk`: `{ chatId, conversationId?, messageId, seq, content, ... }`
+  - `responseEnd`: `{ chatId, conversationId, messageId, fullContent, finished: true, ... }`
+  - `error`: `{ chatId, messageId?, code, message }`
+
+- regla importante de estado:
+  - usar `chatId` para enrutar chunks en la UI/sala activa.
+  - cuando llegue `conversationId` en `responseChunk` o `responseEnd`, actualizar el estado canónico del chat para siguientes requests REST/WS.
+
 ## Cambios recomendados en frontend
 
 1. Unificar configuracion de URLs
@@ -62,6 +74,7 @@ Este documento define lo que el frontend (`r3-chat`) debe implementar para mante
 4. Manejo consistente de `conversationId`
    - Si es UUID valido, enviarlo en `conversationId`.
    - Si no existe chat activo, permitir que backend lo cree y devolver el nuevo id al finalizar.
+   - En WS, no reemplazar el chat activo al primer chunk: consolidar al recibir `responseEnd`.
 
 5. Observabilidad frontend
    - Agregar logs de desarrollo por endpoint (request id, status, latencia).
