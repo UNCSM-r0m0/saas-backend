@@ -223,6 +223,244 @@ export class ChatDomainService {
     };
   }
 
+  async sendMessageStreaming(
+    dto: SendMessageDto,
+    userId: string | undefined,
+    onChunk: (chunk: string) => void,
+  ) {
+    const canSend = await this.usageService.canSendMessage(
+      userId,
+      userId ? undefined : dto.anonymousId,
+    );
+    if (!canSend.allowed) {
+      throw new ForbiddenException(
+        `Has alcanzado tu límite de ${canSend.limit} mensajes por día.`,
+      );
+    }
+
+    let tier: SubscriptionTier = SubscriptionTier.FREE;
+    if (userId) {
+      const subscription =
+        await this.subscriptionsService.getOrCreateSubscription(userId);
+      tier = subscription.tier;
+    }
+    const limits = this.subscriptionsService.getUserLimits(tier);
+
+    let chatId = dto.conversationId;
+    let chat: any = null;
+
+    if (userId && !chatId) {
+      chat = await this.prisma.chat.create({
+        data: {
+          ownerId: userId,
+          title: this.generateTitle(dto.content),
+          isAnonymous: false,
+        },
+      });
+      chatId = chat.id;
+    } else if (!userId) {
+      chatId = 'anonymous';
+    } else if (userId && chatId) {
+      chat = await this.prisma.chat.findUnique({ where: { id: chatId } });
+      if (!chat) {
+        chat = await this.prisma.chat.create({
+          data: {
+            id: chatId,
+            ownerId: userId,
+            title: this.generateTitle(dto.content),
+            isAnonymous: false,
+          },
+        });
+      }
+    }
+
+    if (userId && chatId !== 'anonymous') {
+      await this.prisma.message.create({
+        data: {
+          chatId: chatId!,
+          userId,
+          role: MessageRole.USER,
+          content: dto.content,
+        },
+      });
+    }
+
+    const history = userId ? await this.getChatHistory(chatId!) : [];
+    const selectedModel = (dto.model || 'ollama').trim();
+    const isPremiumRequested = ['gemini', 'openai', 'deepseek'].includes(
+      selectedModel,
+    );
+    if (isPremiumRequested && tier !== SubscriptionTier.PREMIUM) {
+      throw new ForbiddenException(
+        'Este modelo es Premium. Actualiza tu suscripción para usarlo.',
+      );
+    }
+
+    let fullContent = '';
+    let modelUsed = selectedModel;
+
+    if (selectedModel === 'gemini') {
+      const stream = await this.geminiService.generateStreamingResponse(
+        dto.content,
+        {
+          maxTokens: limits.maxTokensPerMessage,
+          temperature: 0.7,
+          systemPrompt: 'Eres un asistente de IA útil y amigable.',
+        },
+      );
+      for await (const chunk of stream) {
+        if (!chunk) continue;
+        fullContent += chunk;
+        onChunk(chunk);
+      }
+      modelUsed = 'gemini-2.0-flash-exp';
+    } else if (selectedModel === 'openai') {
+      const stream = await this.openaiService.generateStreamingResponse(
+        dto.content,
+        {
+          maxTokens: limits.maxTokensPerMessage,
+          temperature: 0.7,
+          systemPrompt: 'Eres un asistente de IA útil y amigable.',
+        },
+      );
+      for await (const chunk of stream) {
+        if (!chunk) continue;
+        fullContent += chunk;
+        onChunk(chunk);
+      }
+      modelUsed = 'openai';
+    } else if (selectedModel === 'deepseek') {
+      const result = await this.deepseekService.generateResponse(dto.content, {
+        maxTokens: limits.maxTokensPerMessage,
+        temperature: 0.7,
+        systemPrompt: 'Eres un asistente de IA útil y amigable.',
+        model: 'deepseek-chat',
+      });
+      fullContent = result.response;
+      if (fullContent) onChunk(fullContent);
+      modelUsed = result.model;
+    } else {
+      const ollamaMessages = [
+        ...history.map((m) => ({
+          role: m.role as 'user' | 'assistant' | 'system',
+          content: m.content,
+        })),
+        { role: 'user' as const, content: dto.content },
+      ];
+
+      let ollamaModel: string | undefined = selectedModel;
+      if (selectedModel.startsWith('ollama-')) {
+        ollamaModel = selectedModel.replace('ollama-', '');
+      } else if (selectedModel === 'ollama') {
+        ollamaModel = undefined;
+      }
+
+      const makeR1Processor = () => {
+        let inThink = false;
+        return (chunk: string) => {
+          let i = 0;
+          let resp = '';
+          const startTag = '<think>';
+          const endTag = '</think>';
+          while (i < chunk.length) {
+            if (!inThink) {
+              const j = chunk.indexOf(startTag, i);
+              if (j === -1) {
+                resp += chunk.slice(i);
+                break;
+              }
+              resp += chunk.slice(i, j);
+              i = j + startTag.length;
+              inThink = true;
+            } else {
+              const k = chunk.indexOf(endTag, i);
+              if (k === -1) {
+                break;
+              }
+              i = k + endTag.length;
+              inThink = false;
+            }
+          }
+          return resp;
+        };
+      };
+
+      const processR1 = makeR1Processor();
+
+      try {
+        const stream = this.ollamaService.generateStream(
+          ollamaMessages,
+          ollamaModel,
+          limits.maxTokensPerMessage,
+        );
+        for await (const part of stream) {
+          const piece = typeof part === 'string' ? part : (part?.content ?? '');
+          if (!piece) continue;
+          const cleaned = processR1(piece);
+          if (!cleaned) continue;
+          fullContent += cleaned;
+          onChunk(cleaned);
+        }
+      } catch (error: any) {
+        const fallbackModel = this.resolveOllamaFallbackModel(ollamaModel);
+        if (!fallbackModel || !this.isModelMemoryError(error)) {
+          throw error;
+        }
+        const fallbackResponse = await this.ollamaService.generate(
+          ollamaMessages,
+          limits.maxTokensPerMessage,
+          fallbackModel,
+        );
+        fullContent = fallbackResponse.content;
+        if (fullContent) onChunk(fullContent);
+        modelUsed = fallbackModel;
+      }
+
+      if (!modelUsed || modelUsed === 'ollama') {
+        modelUsed = ollamaModel || 'ollama-default';
+      }
+    }
+
+    const tokensUsed = Math.ceil((fullContent || '').length / 4);
+    let assistantMessage;
+    if (userId && chatId !== 'anonymous') {
+      assistantMessage = await this.prisma.message.create({
+        data: {
+          chatId: chatId!,
+          userId,
+          role: MessageRole.ASSISTANT,
+          content: fullContent,
+          tokensUsed,
+          model: modelUsed,
+        },
+      });
+
+      if (chat && chat.title === 'Nueva conversación') {
+        const newTitle = this.generateTitle(dto.content);
+        if (newTitle && newTitle !== 'Nueva conversación') {
+          await this.prisma.chat.update({
+            where: { id: chatId! },
+            data: { title: newTitle },
+          });
+        }
+      }
+    }
+
+    return {
+      conversationId: chatId !== 'anonymous' ? chatId : 'temp-chat-id',
+      message: {
+        id: assistantMessage?.id || 'temp-assistant-id',
+        role: 'assistant',
+        content: fullContent,
+        createdAt: assistantMessage?.createdAt || new Date(),
+        tokensUsed,
+      },
+      remaining: canSend.remaining - 1,
+      limit: canSend.limit,
+      tier,
+    };
+  }
+
   async createChat(ownerId?: string, title?: string): Promise<any> {
     return this.prisma.chat.create({
       data: {

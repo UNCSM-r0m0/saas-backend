@@ -46,15 +46,74 @@ export class ChatNatsController {
     }
 
     let result: ChatSendMessageResponseV1;
+    let emittedChunks = 0;
     try {
-      const raw = (await this.chatService.sendMessage(
-        payload.dto,
-        payload.userId,
-      )) as any;
-      result = {
-        ...raw,
-        conversationId: String(raw?.conversationId || requestedChatId),
-      };
+      if (streamId) {
+        let seq = 0;
+        let pendingBuffer = '';
+        const flushBuffer = (force = false) => {
+          if (!pendingBuffer) return;
+          if (!force && pendingBuffer.length < 32) return;
+          seq += 1;
+          emittedChunks += 1;
+          this.eventsPublisher.emitStreamChunk({
+            streamId,
+            chatId: requestedChatId,
+            conversationId: requestedChatId,
+            messageId,
+            seq,
+            content: pendingBuffer,
+            contentType: 'markdown',
+            timestamp: new Date().toISOString(),
+          });
+          pendingBuffer = '';
+        };
+
+        const flushTimer = setInterval(() => flushBuffer(false), 120);
+        let raw: any;
+        try {
+          raw = await this.chatService.sendMessageStreaming(
+            payload.dto as any,
+            payload.userId,
+            (content) => {
+              if (!content) return;
+              pendingBuffer += content;
+
+              if (pendingBuffer.length < 220) return;
+              seq += 1;
+              emittedChunks += 1;
+              this.eventsPublisher.emitStreamChunk({
+                streamId,
+                chatId: requestedChatId,
+                conversationId: requestedChatId,
+                messageId,
+                seq,
+                content: pendingBuffer,
+                contentType: 'markdown',
+                timestamp: new Date().toISOString(),
+              });
+              pendingBuffer = '';
+            },
+          );
+        } finally {
+          clearInterval(flushTimer);
+          flushBuffer(true);
+        }
+
+        result = {
+          ...raw,
+          conversationId: String(raw?.conversationId || requestedChatId),
+        };
+      } else {
+        const raw = (await this.chatService.sendMessage(
+          payload.dto,
+          payload.userId,
+        )) as any;
+        result = {
+          ...raw,
+          conversationId: String(raw?.conversationId || requestedChatId),
+        };
+      }
     } catch (error: any) {
       if (streamId) {
         this.eventsPublisher.emitStreamError({
@@ -73,31 +132,14 @@ export class ChatNatsController {
     const fullContent = String(result?.message?.content || '');
 
     if (streamId && fullContent) {
-      const chunkSize = 120;
-      let seq = 0;
-      for (let i = 0; i < fullContent.length; i += chunkSize) {
-        const content = fullContent.slice(i, i + chunkSize);
-        if (!content) continue;
-        seq++;
-        this.eventsPublisher.emitStreamChunk({
-          streamId,
-          chatId: requestedChatId,
-          conversationId: finalChatId,
-          messageId,
-          seq,
-          content,
-          contentType: 'markdown',
-          timestamp: new Date().toISOString(),
-        });
-      }
-
+      const totalChunks = Math.max(1, emittedChunks);
       this.eventsPublisher.emitStreamFinished({
         streamId,
         chatId: requestedChatId,
         conversationId: finalChatId,
         messageId,
         userId: payload.userId,
-        totalChunks: seq,
+        totalChunks,
         fullContent,
         finishedAt: new Date().toISOString(),
       });
