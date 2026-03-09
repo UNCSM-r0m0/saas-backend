@@ -29,6 +29,7 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
      - `chat.events.usage.incremented`
      - `chat.events.session.created`
      - `chat.events.session.deleted`
+   - Batching de chunks configurable por env (`CHAT_STREAM_BATCH_MS`, `CHAT_STREAM_BATCH_TARGET_CHARS`, `CHAT_STREAM_BATCH_MIN_CHARS`).
 
 5. Separación de datos por schema
    - `chat`: ya separado (previo).

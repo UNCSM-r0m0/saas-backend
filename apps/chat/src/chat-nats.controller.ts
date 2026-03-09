@@ -18,10 +18,30 @@ import { ChatEventsPublisher } from './chat-events.publisher';
 
 @Controller()
 export class ChatNatsController {
+  private readonly streamBatchIntervalMs = this.readNumberFromEnv(
+    'CHAT_STREAM_BATCH_MS',
+    120,
+  );
+  private readonly streamBatchTargetChars = this.readNumberFromEnv(
+    'CHAT_STREAM_BATCH_TARGET_CHARS',
+    220,
+  );
+  private readonly streamBatchMinChars = this.readNumberFromEnv(
+    'CHAT_STREAM_BATCH_MIN_CHARS',
+    32,
+  );
+
   constructor(
     private readonly chatService: ChatDomainService,
     private readonly eventsPublisher: ChatEventsPublisher,
   ) {}
+
+  private readNumberFromEnv(key: string, fallback: number): number {
+    const raw = process.env[key];
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value <= 0) return fallback;
+    return Math.floor(value);
+  }
 
   @MessagePattern(CHAT_PATTERNS.health)
   health() {
@@ -53,7 +73,7 @@ export class ChatNatsController {
         let pendingBuffer = '';
         const flushBuffer = (force = false) => {
           if (!pendingBuffer) return;
-          if (!force && pendingBuffer.length < 32) return;
+          if (!force && pendingBuffer.length < this.streamBatchMinChars) return;
           seq += 1;
           emittedChunks += 1;
           this.eventsPublisher.emitStreamChunk({
@@ -69,7 +89,10 @@ export class ChatNatsController {
           pendingBuffer = '';
         };
 
-        const flushTimer = setInterval(() => flushBuffer(false), 120);
+        const flushTimer = setInterval(
+          () => flushBuffer(false),
+          this.streamBatchIntervalMs,
+        );
         let raw: any;
         try {
           raw = await this.chatService.sendMessageStreaming(
@@ -79,7 +102,7 @@ export class ChatNatsController {
               if (!content) return;
               pendingBuffer += content;
 
-              if (pendingBuffer.length < 220) return;
+              if (pendingBuffer.length < this.streamBatchTargetChars) return;
               seq += 1;
               emittedChunks += 1;
               this.eventsPublisher.emitStreamChunk({
