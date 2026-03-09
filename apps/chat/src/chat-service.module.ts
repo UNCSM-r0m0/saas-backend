@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { PrismaModule } from '../../../src/prisma/prisma.module';
+import { PrismaModule } from 'libs/platform/prisma';
 import { SubscriptionsModule } from '../../../src/subscriptions/subscriptions.module';
 import { OllamaModule } from '../../../src/ollama/ollama.module';
 import { GeminiModule } from '../../../src/gemini/gemini.module';

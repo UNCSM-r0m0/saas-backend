@@ -1,17 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { UsageServiceController } from './usage-service.controller';
-import { UsageService } from '../../../src/usage/usage.service';
-import { PrismaModule } from '../../../src/prisma/prisma.module';
-import { SubscriptionsModule } from '../../../src/subscriptions/subscriptions.module';
+import { PrismaModule } from 'libs/platform/prisma';
+import { UsageDomainService } from './usage-domain.service';
+import { UsageSubscriptionsService } from './usage-subscriptions.service';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    PrismaModule,
-    SubscriptionsModule,
-  ],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule],
   controllers: [UsageServiceController],
-  providers: [UsageService],
+  providers: [UsageDomainService, UsageSubscriptionsService],
 })
 export class UsageServiceModule {}

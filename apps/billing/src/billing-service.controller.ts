@@ -5,7 +5,7 @@ import type {
   ChatMessageCreatedEvent,
   ChatUsageIncrementedEvent,
 } from 'libs/contracts/chat';
-import { PrismaService } from '../../../src/prisma/prisma.service';
+import { PrismaService } from 'libs/platform/prisma';
 
 @Controller()
 export class BillingServiceController {

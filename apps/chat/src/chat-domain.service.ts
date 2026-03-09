@@ -6,14 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { MessageRole, SubscriptionTier } from '@prisma/client';
-import { PrismaService } from '../../../src/prisma/prisma.service';
+import { PrismaService } from 'libs/platform/prisma';
 import { OllamaService } from '../../../src/ollama/ollama.service';
 import { GeminiService } from '../../../src/gemini/gemini.service';
 import { OpenAIService } from '../../../src/openai/openai.service';
 import { DeepSeekService } from '../../../src/deepseek/deepseek.service';
 import { SubscriptionsService } from '../../../src/subscriptions/subscriptions.service';
 import { UsageService } from '../../../src/usage/usage.service';
-import { SendMessageDto } from '../../../src/chat/dto/send-message.dto';
+import type { ChatSendMessageDto as SendMessageDto } from 'libs/contracts/chat';
 
 @Injectable()
 export class ChatDomainService {
