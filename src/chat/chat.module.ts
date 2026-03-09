@@ -13,6 +13,8 @@ import { GeminiModule } from '../gemini/gemini.module';
 import { OpenAIModule } from '../openai/openai.module';
 import { DeepSeekModule } from '../deepseek/deepseek.module';
 import { AuthModule } from '../auth/auth.module';
+import { ChatGatewayAuthService } from './gateway/chat-gateway-auth.service';
+import { ChatGatewayRoomService } from './gateway/chat-gateway-room.service';
 
 @Module({
   imports: [
@@ -32,7 +34,14 @@ import { AuthModule } from '../auth/auth.module';
     AuthModule,
     WsModule,
   ],
-  providers: [ChatService, ChatGateway, UsageService, ChatClient],
+  providers: [
+    ChatService,
+    ChatGateway,
+    UsageService,
+    ChatClient,
+    ChatGatewayAuthService,
+    ChatGatewayRoomService,
+  ],
   controllers: [ChatController, ChatSessionsController, ChatMessagesController],
   exports: [ChatService, ChatClient],
 })

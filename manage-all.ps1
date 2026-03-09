@@ -44,7 +44,7 @@ function Run-Backend-Migrations {
   Write-Header "`n[MIGRACIONES BACKEND]"
   Compose $BackendCompose $BackendProject @("run", "--rm", "--no-deps", "gateway", "npx", "prisma", "migrate", "deploy")
   if ($LASTEXITCODE -eq 0) {
-    Write-Success "[OK] Migraciones aplicadas (incluye schemas users/chat)"
+    Write-Success "[OK] Migraciones aplicadas (incluye users/chat/billing/usage)"
   } else {
     Write-WarningMsg "[WARN] No se pudieron aplicar migraciones automaticamente"
   }
@@ -158,9 +158,10 @@ function Show-Logs {
 function Health-Checks {
   Write-Header "`n[HEALTH CHECKS]"
   Write-Host "1) Backend: users.health (NATS)" -ForegroundColor Yellow
-  Write-Host "2) Gateway: /api/health (3001)" -ForegroundColor Yellow
-  Write-Host "3) n8n: HTTP status" -ForegroundColor Yellow
-  $choice = Read-Host "Opcion (1/2/3)"
+  Write-Host "2) Backend: chat.health (NATS)" -ForegroundColor Yellow
+  Write-Host "3) Gateway: /api/health (3001)" -ForegroundColor Yellow
+  Write-Host "4) n8n: HTTP status" -ForegroundColor Yellow
+  $choice = Read-Host "Opcion (1/2/3/4)"
   if ($choice -eq "1") {
     $scriptPath = Join-Path $PSScriptRoot "scripts\nats-users-health.js"
     if (-not (Test-Path $scriptPath)) {
@@ -174,13 +175,25 @@ function Health-Checks {
       Pop-Location
     }
   } elseif ($choice -eq "2") {
+    $scriptPath = Join-Path $PSScriptRoot "scripts\nats-chat-health.js"
+    if (-not (Test-Path $scriptPath)) {
+      Write-WarningMsg "No existe el script nats-chat-health.js"
+      return
+    }
+    Push-Location $PSScriptRoot
+    try {
+      node scripts/nats-chat-health.js
+    } finally {
+      Pop-Location
+    }
+  } elseif ($choice -eq "3") {
     try {
       $resp = Invoke-WebRequest -Uri "http://localhost:3001/api/health" -TimeoutSec 5
       Write-Success "gateway /api/health (3001): $($resp.StatusCode)"
     } catch {
       Write-WarningMsg "No se pudo acceder a gateway en http://localhost:3001/api/health"
     }
-  } elseif ($choice -eq "3") {
+  } elseif ($choice -eq "4") {
     try {
       $resp = Invoke-WebRequest -Uri "http://localhost:5678/healthz" -TimeoutSec 5
       Write-Success "n8n healthz: $($resp.StatusCode)"
@@ -212,7 +225,7 @@ function Show-Menu {
   Write-Host " 10. Rebuild gateway/users"
   Write-Host " 11. Rebuild servicio (uno)"
   Write-Host " 12. Rebuild todos los servicios"
-  Write-Host " 13. Ejecutar migraciones backend (users/chat)"
+  Write-Host " 13. Ejecutar migraciones backend (users/chat/billing/usage)"
   Write-Host "  0. Salir"
   Write-Host ""
 }

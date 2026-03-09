@@ -10,7 +10,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["public", "users", "chat"]
+  schemas  = ["public", "users", "chat", "billing", "usage"]
 }
 
 // Enums
@@ -35,7 +35,7 @@ enum SubscriptionTier {
   REGISTERED // Registrados: 50 mensajes/día
   PREMIUM // Premium: 100 mensajes/día + imágenes
 
-  @@schema("public")
+  @@schema("billing")
 }
 
 enum SubscriptionStatus {
@@ -44,7 +44,7 @@ enum SubscriptionStatus {
   EXPIRED
   TRIALING
 
-  @@schema("public")
+  @@schema("billing")
 }
 
 enum MessageRole {
@@ -155,7 +155,7 @@ model Subscription {
   @@index([userId])
   @@index([stripeCustomerId])
   @@map("subscriptions")
-  @@schema("public")
+  @@schema("billing")
 }
 
 // Nuevo modelo Chat para sesiones mejoradas
@@ -234,5 +234,5 @@ model UsageRecord {
   @@index([userId, date])
   @@index([anonymousId, date])
   @@map("usage_records")
-  @@schema("public")
+  @@schema("usage")
 }
