@@ -48,9 +48,6 @@
     "deploy:setup": "npm run prisma:generate && npm run prisma:migrate:deploy && npm run build",
     "deploy:start": "npm run deploy:setup && npm run start:prod"
   },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
-  },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^11.0.1",
