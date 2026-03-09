@@ -57,14 +57,19 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
    - Clientes gateway (`ChatClient`, `AuthClient`, `UsersClient`) hacen `unwrap` automático para `v1` y legado.
    - Tests de compatibilidad de envelope añadidos.
 
+10. Sprint C (observabilidad base + runbook)
+    - Correlation ID propagado en flujo de chat (gateway -> NATS -> eventos stream).
+    - Logs de consumidores (`usage`, `billing`) incluyen `correlationId` cuando está disponible.
+    - Runbook operativo agregado en `docs/operations-runbook.md`.
+
 ## Siguiente fase recomendada
 
 1. Suite de validación
    - Tests de contrato para `CHAT_PATTERNS`/`CHAT_EVENTS`.
    - Smoke tests automatizados HTTP + WS para `/api/chat/*`.
 
-2. Observabilidad y runbook
-   - Correlation IDs cross-service, logging consistente y playbook de incidentes.
-
-3. Endurecimiento de idempotencia de eventos
+2. Endurecimiento de idempotencia de eventos
    - Dedupe keys / event IDs para evitar doble procesamiento en consumidores (`usage`, `billing`).
+
+3. CI de regresión integral
+   - Ejecutar build + contratos + smoke en pipeline por PR/release.

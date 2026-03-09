@@ -61,12 +61,14 @@ export class ChatClient {
     userId?: string,
     streamId?: string,
     messageId?: string,
+    correlationId?: string,
   ): Promise<ChatSendMessageResponseV1> {
     const payload: ChatSendMessagePayload = {
       dto,
       userId,
       streamId,
       messageId,
+      correlationId,
     };
     return this.send<ChatSendMessageResponseV1>(
       CHAT_PATTERNS.sendMessage,

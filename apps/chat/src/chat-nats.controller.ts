@@ -1,4 +1,4 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { ChatDomainService } from './chat-domain.service';
 import { CHAT_EVENTS, CHAT_PATTERNS } from 'libs/contracts/chat';
@@ -19,6 +19,7 @@ import { ChatEventsPublisher } from './chat-events.publisher';
 
 @Controller()
 export class ChatNatsController {
+  private readonly logger = new Logger(ChatNatsController.name);
   private readonly streamBatchIntervalMs = this.readNumberFromEnv(
     'CHAT_STREAM_BATCH_MS',
     120,
@@ -57,11 +58,13 @@ export class ChatNatsController {
   async sendMessage(@Payload() payload: ChatSendMessagePayload) {
     const streamId = payload.streamId;
     const messageId = payload.messageId || 'unknown';
+    const correlationId = payload.correlationId;
     const requestedChatId =
       payload.dto?.conversationId || payload.dto?.anonymousId || 'temp-chat-id';
 
     if (streamId) {
       this.eventsPublisher.emitStreamStarted({
+        correlationId,
         streamId,
         chatId: requestedChatId,
         messageId,
@@ -111,6 +114,7 @@ export class ChatNatsController {
               seq += 1;
               emittedChunks += 1;
               this.eventsPublisher.emitStreamChunk({
+                correlationId,
                 streamId,
                 chatId: requestedChatId,
                 conversationId: requestedChatId,
@@ -145,6 +149,7 @@ export class ChatNatsController {
     } catch (error: any) {
       if (streamId) {
         this.eventsPublisher.emitStreamError({
+          correlationId,
           streamId,
           chatId: requestedChatId,
           messageId,
@@ -162,6 +167,7 @@ export class ChatNatsController {
     if (streamId && fullContent) {
       const totalChunks = Math.max(1, emittedChunks);
       this.eventsPublisher.emitStreamFinished({
+        correlationId,
         streamId,
         chatId: requestedChatId,
         conversationId: finalChatId,
@@ -175,6 +181,7 @@ export class ChatNatsController {
 
     try {
       this.eventsPublisher.emitMessageCreated({
+        correlationId,
         conversationId: result.conversationId || 'unknown',
         messageId: result.message?.id || 'unknown',
         userId: payload.userId,
@@ -183,6 +190,7 @@ export class ChatNatsController {
         createdAt: new Date().toISOString(),
       });
       this.eventsPublisher.emitUsageIncremented({
+        correlationId,
         conversationId: result.conversationId,
         userId: payload.userId,
         anonymousId: payload.dto?.anonymousId,
@@ -192,6 +200,10 @@ export class ChatNatsController {
     } catch (error) {
       this.eventsPublisher.logEmitError(CHAT_EVENTS.messageCreated, error);
     }
+
+    this.logger.debug(
+      `chat.sendMessage completado correlationId=${correlationId || 'n/a'} conversationId=${result.conversationId}`,
+    );
 
     return this.v1(result);
   }
@@ -204,6 +216,7 @@ export class ChatNatsController {
     );
     try {
       this.eventsPublisher.emitSessionCreated({
+        correlationId: undefined,
         chatId: chat.id,
         ownerId: payload.userId,
         createdAt: new Date().toISOString(),
@@ -237,6 +250,7 @@ export class ChatNatsController {
     );
     try {
       this.eventsPublisher.emitSessionDeleted({
+        correlationId: undefined,
         chatId: payload.chatId,
         ownerId: payload.userId,
         deletedAt: new Date().toISOString(),

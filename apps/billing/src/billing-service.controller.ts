@@ -57,7 +57,7 @@ export class BillingServiceController {
     });
 
     this.logger.debug(
-      `Evento facturable registrado (messageCreated): ${payload.messageId}`,
+      `Evento facturable registrado (messageCreated): ${payload.messageId} correlationId=${payload.correlationId || 'n/a'}`,
     );
   }
 }

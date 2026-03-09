@@ -16,6 +16,7 @@ import { ChatGatewayAuthService } from './gateway/chat-gateway-auth.service';
 import { ChatGatewayRoomService } from './gateway/chat-gateway-room.service';
 import { ChatClient } from './chat.client';
 import { ChatStreamSessionService } from './gateway/chat-stream-session.service';
+import { createCorrelationId } from '../common/utils/correlation-id.util';
 
 interface AuthSocket extends Socket {
   user?: { sub?: string } | null;
@@ -118,6 +119,7 @@ export class ChatGateway
       chatId?: string;
       model?: string;
       broadcast?: boolean;
+      correlationId?: string;
     },
     @ConnectedSocket() client: AuthSocket,
     callback?: (ack: { status: 'ok' | 'error'; message?: string }) => void,
@@ -126,6 +128,10 @@ export class ChatGateway
 
     const chatId = data.chatId || `anonymous-${client.id}`;
     const message = (data.message ?? data.content ?? '').trim();
+    const correlationId =
+      typeof data.correlationId === 'string' && data.correlationId.trim()
+        ? data.correlationId.trim()
+        : createCorrelationId();
 
     if (!message) {
       client.emit('error', {
@@ -159,6 +165,7 @@ export class ChatGateway
       chatId,
       message,
       broadcast,
+      correlationId,
     );
   }
 
@@ -179,6 +186,7 @@ export class ChatGateway
     chatId: string,
     message: string,
     broadcast: boolean,
+    correlationId: string,
   ) {
     try {
       // El gateway ya no genera IA localmente: delega al microservicio chat (NATS)
@@ -215,6 +223,7 @@ export class ChatGateway
           userId,
           streamId,
           messageId,
+          correlationId,
         );
       } catch (streamError: any) {
         this.streamSessions.remove(streamId);
@@ -230,6 +239,7 @@ export class ChatGateway
           code: 'STREAM_ERROR',
           chatId,
           messageId,
+          correlationId,
         });
       }
     } catch (error) {

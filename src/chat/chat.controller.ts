@@ -9,6 +9,7 @@ import {
   getUserIdFromAuthHeader,
   getUserIdFromReq,
 } from '../common/utils/auth.util';
+import { getCorrelationIdFromReq } from '../common/utils/correlation-id.util';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -44,6 +45,8 @@ export class ChatController {
     @Req() req: any,
     @Res() res: Response,
   ) {
+    const correlationId = getCorrelationIdFromReq(req);
+    res.setHeader('x-correlation-id', correlationId);
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -58,6 +61,9 @@ export class ChatController {
       const result: any = await this.chatClient.sendMessage(
         dto,
         userId || undefined,
+        undefined,
+        undefined,
+        correlationId,
       );
 
       const fullContent = String(result?.message?.content || '');

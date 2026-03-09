@@ -30,7 +30,7 @@ export class UsageServiceController {
     );
 
     this.logger.debug(
-      `Uso actualizado por evento chat.events.usage.incremented (${payload.userId || payload.anonymousId || 'unknown'})`,
+      `Uso actualizado por evento chat.events.usage.incremented (${payload.userId || payload.anonymousId || 'unknown'}) correlationId=${payload.correlationId || 'n/a'}`,
     );
   }
 }

@@ -24,6 +24,7 @@ export class ChatStreamEventsController {
     this.emit(session, 'responseStart', {
       chatId: session.chatId,
       messageId: session.messageId,
+      correlationId: payload.correlationId,
       timestamp: payload.startedAt,
     });
   }
@@ -40,6 +41,7 @@ export class ChatStreamEventsController {
       partial: true,
       content: payload.content,
       contentType: payload.contentType || 'markdown',
+      correlationId: payload.correlationId,
       timestamp: payload.timestamp,
     });
   }
@@ -57,6 +59,7 @@ export class ChatStreamEventsController {
       fullContent: payload.fullContent || '',
       totalChunks: payload.totalChunks || 0,
       finished: true,
+      correlationId: payload.correlationId,
       timestamp: payload.finishedAt,
     });
     this.streamSessions.remove(streamId);
@@ -71,6 +74,7 @@ export class ChatStreamEventsController {
       code: payload.code,
       chatId: session.chatId,
       messageId: session.messageId,
+      correlationId: payload.correlationId,
     });
     this.streamSessions.remove(payload.streamId);
   }

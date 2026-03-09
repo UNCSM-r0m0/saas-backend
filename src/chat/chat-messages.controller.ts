@@ -13,6 +13,7 @@ import {
   getUserIdFromAuthHeader,
   getUserIdFromReq,
 } from '../common/utils/auth.util';
+import { getCorrelationIdFromReq } from '../common/utils/correlation-id.util';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatResponseDto } from './dto/chat-response.dto';
 import { ChatClient } from './chat.client';
@@ -36,6 +37,7 @@ export class ChatMessagesController {
   @ApiResponse({ status: 403, description: 'Límite de mensajes alcanzado' })
   @ApiBody({ type: SendMessageDto })
   async sendMessage(@Body() dto: SendMessageDto, @Req() req: any) {
+    const correlationId = getCorrelationIdFromReq(req);
     let userId = getUserIdFromReq(req);
     if (!userId) {
       userId = getUserIdFromAuthHeader(req.headers?.authorization);
@@ -47,6 +49,9 @@ export class ChatMessagesController {
     const result: ChatSendMessageResponseV1 = await this.chatClient.sendMessage(
       dto,
       userId || undefined,
+      undefined,
+      undefined,
+      correlationId,
     );
     this.logger.log(
       `✅ [POST /chat/message] Respuesta enviada exitosamente: ${result.message.content.length} caracteres`,
@@ -61,6 +66,13 @@ export class ChatMessagesController {
   @ApiResponse({ status: 200, type: ChatResponseDto })
   async sendAuthenticatedMessage(@Body() dto: SendMessageDto, @Req() req: any) {
     const userId = getUserIdFromReq(req)!;
-    return this.chatClient.sendMessage(dto, userId);
+    const correlationId = getCorrelationIdFromReq(req);
+    return this.chatClient.sendMessage(
+      dto,
+      userId,
+      undefined,
+      undefined,
+      correlationId,
+    );
   }
 }
