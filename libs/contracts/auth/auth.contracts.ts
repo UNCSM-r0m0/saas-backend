@@ -32,3 +32,13 @@ export interface AuthTokensResponse {
   refresh_token: string;
   user?: any;
 }
+
+export interface AuthHealthResponseV1 {
+  service: 'auth';
+  status: 'ok';
+}
+
+export interface AuthResponseEnvelopeV1<T> {
+  version: 'v1';
+  data: T;
+}

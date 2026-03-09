@@ -2,6 +2,7 @@ import { Controller, HttpException } from '@nestjs/common';
 import { MessagePattern, RpcException } from '@nestjs/microservices';
 import { AUTH_PATTERNS } from 'libs/contracts/auth';
 import type {
+  AuthResponseEnvelopeV1,
   AuthRegisterPayload,
   AuthValidateUserPayload,
   AuthValidateOAuthPayload,
@@ -19,6 +20,10 @@ export class AuthServiceController {
     private readonly tokenService: AuthTokenService,
   ) {}
 
+  private v1<T>(data: T): AuthResponseEnvelopeV1<T> {
+    return { version: 'v1', data };
+  }
+
   private handleError(error: unknown): never {
     if (error instanceof HttpException) {
       throw new RpcException({
@@ -33,7 +38,7 @@ export class AuthServiceController {
 
   @MessagePattern(AUTH_PATTERNS.health)
   health() {
-    return { service: 'auth', status: 'ok' };
+    return this.v1({ service: 'auth', status: 'ok' as const });
   }
 
   @MessagePattern(AUTH_PATTERNS.register)
@@ -45,7 +50,7 @@ export class AuthServiceController {
         email: user.email,
         role: user.role,
       });
-      return { ...tokens, user };
+      return this.v1({ ...tokens, user });
     } catch (error) {
       this.handleError(error);
     }
@@ -54,9 +59,8 @@ export class AuthServiceController {
   @MessagePattern(AUTH_PATTERNS.validateUser)
   async validateUser(payload: AuthValidateUserPayload) {
     try {
-      return await this.authService.validateUser(
-        payload.email,
-        payload.password,
+      return this.v1(
+        await this.authService.validateUser(payload.email, payload.password),
       );
     } catch (error) {
       this.handleError(error);
@@ -66,7 +70,7 @@ export class AuthServiceController {
   @MessagePattern(AUTH_PATTERNS.validateOAuthUser)
   async validateOAuthUser(payload: AuthValidateOAuthPayload) {
     try {
-      return await this.authService.validateOAuthUser(payload.profile);
+      return this.v1(await this.authService.validateOAuthUser(payload.profile));
     } catch (error) {
       this.handleError(error);
     }
@@ -80,7 +84,7 @@ export class AuthServiceController {
         email: payload.email,
         role: payload.role,
       });
-      return tokens;
+      return this.v1(tokens);
     } catch (error) {
       this.handleError(error);
     }
@@ -89,7 +93,9 @@ export class AuthServiceController {
   @MessagePattern(AUTH_PATTERNS.refresh)
   async refresh(payload: AuthRefreshPayload) {
     try {
-      return await this.tokenService.rotateTokens(payload.refreshToken);
+      return this.v1(
+        await this.tokenService.rotateTokens(payload.refreshToken),
+      );
     } catch (error) {
       this.handleError(error);
     }
@@ -99,7 +105,7 @@ export class AuthServiceController {
   async revoke(payload: AuthRevokePayload) {
     try {
       await this.tokenService.revoke(payload.refreshToken);
-      return { ok: true };
+      return this.v1({ ok: true as const });
     } catch (error) {
       this.handleError(error);
     }

@@ -7,8 +7,10 @@ import {
   AuthValidateUserPayload,
   AuthValidateOAuthPayload,
   AuthIssueTokensPayload,
+  AuthResponseEnvelopeV1,
   AuthRefreshPayload,
   AuthRevokePayload,
+  AuthHealthResponseV1,
   AuthTokensResponse,
   RegisterDto,
 } from 'libs/contracts/auth';
@@ -20,9 +22,25 @@ export class AuthClient {
 
   constructor(@Inject('AUTH_NATS') private readonly client: ClientProxy) {}
 
+  private unwrapV1<T>(response: T | AuthResponseEnvelopeV1<T>): T {
+    if (
+      response &&
+      typeof response === 'object' &&
+      'version' in (response as any) &&
+      (response as any).version === 'v1' &&
+      'data' in (response as any)
+    ) {
+      return (response as any).data as T;
+    }
+    return response as T;
+  }
+
   private async send<T>(pattern: string, payload?: unknown): Promise<T> {
     try {
-      return await lastValueFrom(this.client.send<T>(pattern, payload ?? {}));
+      const raw = await lastValueFrom(
+        this.client.send<T | AuthResponseEnvelopeV1<T>>(pattern, payload ?? {}),
+      );
+      return this.unwrapV1<T>(raw);
     } catch (error: any) {
       const statusCode =
         error?.statusCode ?? error?.response?.statusCode ?? 500;
@@ -68,5 +86,9 @@ export class AuthClient {
   revoke(refreshToken: string): Promise<{ ok: true }> {
     const payload: AuthRevokePayload = { refreshToken };
     return this.send<{ ok: true }>(AUTH_PATTERNS.revoke, payload);
+  }
+
+  health(): Promise<AuthHealthResponseV1> {
+    return this.send<AuthHealthResponseV1>(AUTH_PATTERNS.health, {});
   }
 }

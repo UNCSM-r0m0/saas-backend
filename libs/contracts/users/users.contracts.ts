@@ -26,3 +26,13 @@ export interface UsersFindByEmailPayload {
 export interface UsersUpdateLastLoginPayload {
   id: string;
 }
+
+export interface UsersHealthResponseV1 {
+  service: 'users';
+  status: 'ok';
+}
+
+export interface UsersResponseEnvelopeV1<T> {
+  version: 'v1';
+  data: T;
+}

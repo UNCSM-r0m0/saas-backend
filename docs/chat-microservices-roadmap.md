@@ -51,14 +51,20 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
    - `apps/billing`, `apps/auth`, `apps/users` migrados a `libs/platform/prisma`.
    - `apps/chat` consume dependencias via `libs/*` (sin imports directos a `src/*` en la app).
 
+9. Sprint B (versionado de respuestas NATS)
+   - `chat` responde con envelope versionado `{ version: 'v1', data }`.
+   - `auth` y `users` migrados a envelope `v1` manteniendo compatibilidad en clientes.
+   - Clientes gateway (`ChatClient`, `AuthClient`, `UsersClient`) hacen `unwrap` automático para `v1` y legado.
+   - Tests de compatibilidad de envelope añadidos.
+
 ## Siguiente fase recomendada
 
-1. Contratos de respuesta versionados
-   - Formalizar respuestas NATS (DTOs de respuesta), no solo payloads de request.
-
-2. Suite de validación
+1. Suite de validación
    - Tests de contrato para `CHAT_PATTERNS`/`CHAT_EVENTS`.
    - Smoke tests automatizados HTTP + WS para `/api/chat/*`.
 
-3. Observabilidad y runbook
+2. Observabilidad y runbook
    - Correlation IDs cross-service, logging consistente y playbook de incidentes.
+
+3. Endurecimiento de idempotencia de eventos
+   - Dedupe keys / event IDs para evitar doble procesamiento en consumidores (`usage`, `billing`).

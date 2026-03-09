@@ -8,7 +8,9 @@ import {
   UsersUpdatePayload,
   UsersRemovePayload,
   UsersFindByEmailPayload,
+  UsersHealthResponseV1,
   UsersUpdateLastLoginPayload,
+  UsersResponseEnvelopeV1,
   CreateUserDto,
   UpdateUserDto,
 } from 'libs/contracts/users';
@@ -19,10 +21,29 @@ export class UsersClient {
 
   constructor(@Inject('USERS_NATS') private readonly client: ClientProxy) {}
 
+  private unwrapV1<T>(response: T | UsersResponseEnvelopeV1<T>): T {
+    if (
+      response &&
+      typeof response === 'object' &&
+      'version' in (response as any) &&
+      (response as any).version === 'v1' &&
+      'data' in (response as any)
+    ) {
+      return (response as any).data as T;
+    }
+    return response as T;
+  }
+
   // Centralized send to keep controller thin and errors consistent.
   private async send<T>(pattern: string, payload?: unknown): Promise<T> {
     try {
-      return await lastValueFrom(this.client.send<T>(pattern, payload ?? {}));
+      const raw = await lastValueFrom(
+        this.client.send<T | UsersResponseEnvelopeV1<T>>(
+          pattern,
+          payload ?? {},
+        ),
+      );
+      return this.unwrapV1<T>(raw);
     } catch (error: any) {
       const statusCode =
         error?.statusCode ?? error?.response?.statusCode ?? 500;
@@ -64,5 +85,9 @@ export class UsersClient {
   updateLastLogin(id: string): Promise<void> {
     const payload: UsersUpdateLastLoginPayload = { id };
     return this.send<void>(USERS_PATTERNS.updateLastLogin, payload);
+  }
+
+  health(): Promise<UsersHealthResponseV1> {
+    return this.send<UsersHealthResponseV1>(USERS_PATTERNS.health, {});
   }
 }
