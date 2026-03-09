@@ -88,6 +88,7 @@ export class ChatNatsController {
           emittedChunks += 1;
           this.eventsPublisher.emitStreamChunk({
             eventId: randomUUID(),
+            correlationId,
             streamId,
             chatId: requestedChatId,
             conversationId: requestedChatId,
