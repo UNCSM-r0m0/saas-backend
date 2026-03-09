@@ -7,10 +7,10 @@ import { OllamaModule } from '../../../src/ollama/ollama.module';
 import { GeminiModule } from '../../../src/gemini/gemini.module';
 import { OpenAIModule } from '../../../src/openai/openai.module';
 import { DeepSeekModule } from '../../../src/deepseek/deepseek.module';
-import { ChatService } from '../../../src/chat/chat.service';
 import { UsageService } from '../../../src/usage/usage.service';
 import { ChatNatsController } from './chat-nats.controller';
 import { ChatEventsPublisher } from './chat-events.publisher';
+import { ChatDomainService } from './chat-domain.service';
 
 @Module({
   imports: [
@@ -32,6 +32,6 @@ import { ChatEventsPublisher } from './chat-events.publisher';
     DeepSeekModule,
   ],
   controllers: [ChatNatsController],
-  providers: [ChatService, UsageService, ChatEventsPublisher],
+  providers: [ChatDomainService, UsageService, ChatEventsPublisher],
 })
 export class ChatServiceModule {}

@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { ChatService } from '../../../src/chat/chat.service';
+import { ChatDomainService } from './chat-domain.service';
 import { CHAT_EVENTS, CHAT_PATTERNS } from 'libs/contracts/chat';
 import type {
   ChatCreatePayload,
@@ -18,7 +18,7 @@ import { ChatEventsPublisher } from './chat-events.publisher';
 @Controller()
 export class ChatNatsController {
   constructor(
-    private readonly chatService: ChatService,
+    private readonly chatService: ChatDomainService,
     private readonly eventsPublisher: ChatEventsPublisher,
   ) {}
 
