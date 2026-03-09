@@ -130,6 +130,7 @@ export interface ChatResponseEnvelopeV1<T> {
 }
 
 export interface ChatMessageCreatedEvent {
+  eventId: string;
   correlationId?: string;
   conversationId: string;
   messageId: string;
@@ -140,6 +141,7 @@ export interface ChatMessageCreatedEvent {
 }
 
 export interface ChatStreamStartedEvent {
+  eventId: string;
   correlationId?: string;
   streamId: string;
   chatId: string;
@@ -149,6 +151,7 @@ export interface ChatStreamStartedEvent {
 }
 
 export interface ChatStreamChunkEvent {
+  eventId: string;
   correlationId?: string;
   streamId: string;
   chatId: string;
@@ -161,6 +164,7 @@ export interface ChatStreamChunkEvent {
 }
 
 export interface ChatStreamFinishedEvent {
+  eventId: string;
   correlationId?: string;
   streamId?: string;
   chatId?: string;
@@ -173,6 +177,7 @@ export interface ChatStreamFinishedEvent {
 }
 
 export interface ChatStreamErrorEvent {
+  eventId: string;
   correlationId?: string;
   streamId: string;
   chatId: string;
@@ -183,6 +188,7 @@ export interface ChatStreamErrorEvent {
 }
 
 export interface ChatUsageIncrementedEvent {
+  eventId: string;
   correlationId?: string;
   conversationId?: string;
   userId?: string;
@@ -192,6 +198,7 @@ export interface ChatUsageIncrementedEvent {
 }
 
 export interface ChatSessionCreatedEvent {
+  eventId: string;
   correlationId?: string;
   chatId: string;
   ownerId?: string | null;
@@ -199,6 +206,7 @@ export interface ChatSessionCreatedEvent {
 }
 
 export interface ChatSessionDeletedEvent {
+  eventId: string;
   correlationId?: string;
   chatId: string;
   ownerId?: string;

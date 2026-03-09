@@ -26,8 +26,16 @@ export class BillingServiceController {
 
   @EventPattern(CHAT_EVENTS.usageIncremented)
   async onUsageIncremented(@Payload() payload: ChatUsageIncrementedEvent) {
+    if (!payload.eventId) return;
+    const exists = await (this.prisma as any).billingUsageEvent.findUnique({
+      where: { eventId: payload.eventId },
+      select: { id: true },
+    });
+    if (exists) return;
+
     await (this.prisma as any).billingUsageEvent.create({
       data: {
+        eventId: payload.eventId,
         source: 'chat',
         eventType: CHAT_EVENTS.usageIncremented,
         userId: payload.userId,
@@ -41,8 +49,16 @@ export class BillingServiceController {
 
   @EventPattern(CHAT_EVENTS.messageCreated)
   async onMessageCreated(@Payload() payload: ChatMessageCreatedEvent) {
+    if (!payload.eventId) return;
+    const exists = await (this.prisma as any).billingUsageEvent.findUnique({
+      where: { eventId: payload.eventId },
+      select: { id: true },
+    });
+    if (exists) return;
+
     await (this.prisma as any).billingUsageEvent.create({
       data: {
+        eventId: payload.eventId,
         source: 'chat',
         eventType: CHAT_EVENTS.messageCreated,
         userId: payload.userId,

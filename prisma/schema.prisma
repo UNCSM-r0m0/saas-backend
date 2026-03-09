@@ -237,8 +237,20 @@ model UsageRecord {
   @@schema("usage")
 }
 
+model UsageConsumedEvent {
+  id        String   @id @default(uuid())
+  eventId   String   @unique
+  eventType String
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@map("usage_consumed_events")
+  @@schema("usage")
+}
+
 model BillingUsageEvent {
   id             String   @id @default(uuid())
+  eventId        String   @unique
   source         String
   eventType      String
   userId         String?

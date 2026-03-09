@@ -7,9 +7,19 @@ describe('Chat event consumers', () => {
     const usageServiceMock = {
       incrementMessageCount: jest.fn().mockResolvedValue(undefined),
     };
-    const controller = new UsageServiceController(usageServiceMock as any);
+    const prismaMock = {
+      usageConsumedEvent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(undefined),
+      },
+    };
+    const controller = new UsageServiceController(
+      usageServiceMock as any,
+      prismaMock as any,
+    );
 
     await controller.onUsageIncremented({
+      eventId: 'evt-usage-1',
       conversationId: 'conv-1',
       userId: 'user-1',
       tokensUsed: 42,
@@ -25,13 +35,15 @@ describe('Chat event consumers', () => {
 
   it('billing consumer should persist usage increment event', async () => {
     const create = jest.fn().mockResolvedValue(undefined);
+    const findUnique = jest.fn().mockResolvedValue(null);
     const prismaMock = {
-      billingUsageEvent: { create },
+      billingUsageEvent: { create, findUnique },
     };
     const controller = new BillingServiceController(prismaMock as any);
 
     const at = new Date().toISOString();
     await controller.onUsageIncremented({
+      eventId: 'evt-bill-usage-1',
       conversationId: 'conv-2',
       anonymousId: 'anon-2',
       tokensUsed: 20,
@@ -52,12 +64,14 @@ describe('Chat event consumers', () => {
 
   it('billing consumer should persist message created event', async () => {
     const create = jest.fn().mockResolvedValue(undefined);
+    const findUnique = jest.fn().mockResolvedValue(null);
     const prismaMock = {
-      billingUsageEvent: { create },
+      billingUsageEvent: { create, findUnique },
     };
     const controller = new BillingServiceController(prismaMock as any);
 
     await controller.onMessageCreated({
+      eventId: 'evt-bill-msg-1',
       conversationId: 'conv-3',
       messageId: 'msg-3',
       userId: 'user-3',

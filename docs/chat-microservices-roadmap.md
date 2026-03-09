@@ -62,14 +62,25 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
     - Logs de consumidores (`usage`, `billing`) incluyen `correlationId` cuando está disponible.
     - Runbook operativo agregado en `docs/operations-runbook.md`.
 
+11. Sprint D (idempotencia de eventos)
+    - Eventos de chat incluyen `eventId` para dedupe.
+    - `usage` registra eventos consumidos (`usage.usage_consumed_events`) para evitar doble procesamiento.
+    - `billing` usa `eventId` unico en `billing.billing_usage_events`.
+
+12. Sprint E (pipeline CI integral)
+    - Workflow GitHub `microservices-ci.yml` con:
+      - build completo
+      - tests de contratos/envelopes
+      - smoke de compose + websocket connect
+
 ## Siguiente fase recomendada
 
 1. Suite de validación
    - Tests de contrato para `CHAT_PATTERNS`/`CHAT_EVENTS`.
    - Smoke tests automatizados HTTP + WS para `/api/chat/*`.
 
-2. Endurecimiento de idempotencia de eventos
-   - Dedupe keys / event IDs para evitar doble procesamiento en consumidores (`usage`, `billing`).
+2. Endurecimiento de observabilidad
+   - Estandarizar logs estructurados JSON y dashboards minimos (latencia, errores, colas).
 
-3. CI de regresión integral
-   - Ejecutar build + contratos + smoke en pipeline por PR/release.
+3. Endurecimiento de release
+   - Pipeline de release con migraciones automáticas y smoke post-deploy.

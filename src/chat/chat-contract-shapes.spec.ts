@@ -63,58 +63,59 @@ describe('Chat contract shapes snapshot', () => {
       getUsageStats: sortedKeys(payloads.getUsageStats),
       updateFirstMessage: sortedKeys(payloads.updateFirstMessage),
     }).toMatchInlineSnapshot(`
-{
-  "createChat": [
-    "title",
-    "userId",
-  ],
-  "deleteChat": [
-    "chatId",
-    "userId",
-  ],
-  "getChat": [
-    "chatId",
-    "userId",
-  ],
-  "getChatHistory": [
-    "chatId",
-  ],
-  "getUsageStats": [
-    "userId",
-  ],
-  "listChats": [
-    "userId",
-  ],
-  "renameChat": [
-    "chatId",
-    "title",
-    "userId",
-  ],
-  "sendMessage": [
-    "dto",
-    "messageId",
-    "streamId",
-    "userId",
-  ],
-  "sendMessageDto": [
-    "anonymousId",
-    "content",
-    "context",
-    "conversationId",
-    "model",
-  ],
-  "updateFirstMessage": [
-    "chatId",
-    "content",
-    "userId",
-  ],
-}
-`);
+     {
+       "createChat": [
+         "title",
+         "userId",
+       ],
+       "deleteChat": [
+         "chatId",
+         "userId",
+       ],
+       "getChat": [
+         "chatId",
+         "userId",
+       ],
+       "getChatHistory": [
+         "chatId",
+       ],
+       "getUsageStats": [
+         "userId",
+       ],
+       "listChats": [
+         "userId",
+       ],
+       "renameChat": [
+         "chatId",
+         "title",
+         "userId",
+       ],
+       "sendMessage": [
+         "dto",
+         "messageId",
+         "streamId",
+         "userId",
+       ],
+       "sendMessageDto": [
+         "anonymousId",
+         "content",
+         "context",
+         "conversationId",
+         "model",
+       ],
+       "updateFirstMessage": [
+         "chatId",
+         "content",
+         "userId",
+       ],
+     }
+    `);
   });
 
   it('event payload shapes should remain stable', () => {
     const events = {
       messageCreated: {
+        eventId: 'evt-1',
         conversationId: 'conv-id',
         messageId: 'msg-id',
         userId: 'user-id',
@@ -123,6 +124,7 @@ describe('Chat contract shapes snapshot', () => {
         createdAt: new Date().toISOString(),
       },
       streamStarted: {
+        eventId: 'evt-2',
         streamId: 'stream-id',
         chatId: 'chat-id',
         messageId: 'msg-id',
@@ -130,6 +132,7 @@ describe('Chat contract shapes snapshot', () => {
         startedAt: new Date().toISOString(),
       },
       streamChunk: {
+        eventId: 'evt-3',
         streamId: 'stream-id',
         chatId: 'chat-id',
         conversationId: 'conv-id',
@@ -140,6 +143,7 @@ describe('Chat contract shapes snapshot', () => {
         timestamp: new Date().toISOString(),
       },
       streamFinished: {
+        eventId: 'evt-4',
         streamId: 'stream-id',
         chatId: 'chat-id',
         messageId: 'msg-id',
@@ -150,6 +154,7 @@ describe('Chat contract shapes snapshot', () => {
         finishedAt: new Date().toISOString(),
       },
       streamError: {
+        eventId: 'evt-5',
         streamId: 'stream-id',
         chatId: 'chat-id',
         messageId: 'msg-id',
@@ -158,6 +163,7 @@ describe('Chat contract shapes snapshot', () => {
         at: new Date().toISOString(),
       },
       usageIncremented: {
+        eventId: 'evt-6',
         conversationId: 'conv-id',
         userId: 'user-id',
         anonymousId: 'anon-id',
@@ -165,11 +171,13 @@ describe('Chat contract shapes snapshot', () => {
         at: new Date().toISOString(),
       },
       chatCreated: {
+        eventId: 'evt-7',
         chatId: 'chat-id',
         ownerId: 'user-id',
         createdAt: new Date().toISOString(),
       },
       chatDeleted: {
+        eventId: 'evt-8',
         chatId: 'chat-id',
         ownerId: 'user-id',
         deletedAt: new Date().toISOString(),
@@ -186,69 +194,77 @@ describe('Chat contract shapes snapshot', () => {
       chatCreated: sortedKeys(events.chatCreated),
       chatDeleted: sortedKeys(events.chatDeleted),
     }).toMatchInlineSnapshot(`
-{
-  "chatCreated": [
-    "chatId",
-    "createdAt",
-    "ownerId",
-  ],
-  "chatDeleted": [
-    "chatId",
-    "deletedAt",
-    "ownerId",
-  ],
-  "messageCreated": [
-    "conversationId",
-    "createdAt",
-    "messageId",
-    "model",
-    "tokensUsed",
-    "userId",
-  ],
-  "streamChunk": [
-    "chatId",
-    "content",
-    "contentType",
-    "conversationId",
-    "messageId",
-    "seq",
-    "streamId",
-    "timestamp",
-  ],
-  "streamError": [
-    "at",
-    "chatId",
-    "code",
-    "message",
-    "messageId",
-    "streamId",
-  ],
-  "streamFinished": [
-    "chatId",
-    "conversationId",
-    "finishedAt",
-    "fullContent",
-    "messageId",
-    "streamId",
-    "totalChunks",
-    "userId",
-  ],
-  "streamStarted": [
-    "chatId",
-    "messageId",
-    "startedAt",
-    "streamId",
-    "userId",
-  ],
-  "usageIncremented": [
-    "anonymousId",
-    "at",
-    "conversationId",
-    "tokensUsed",
-    "userId",
-  ],
-}
-`);
+     {
+       "chatCreated": [
+         "chatId",
+         "createdAt",
+         "eventId",
+         "ownerId",
+       ],
+       "chatDeleted": [
+         "chatId",
+         "deletedAt",
+         "eventId",
+         "ownerId",
+       ],
+       "messageCreated": [
+         "conversationId",
+         "createdAt",
+         "eventId",
+         "messageId",
+         "model",
+         "tokensUsed",
+         "userId",
+       ],
+       "streamChunk": [
+         "chatId",
+         "content",
+         "contentType",
+         "conversationId",
+         "eventId",
+         "messageId",
+         "seq",
+         "streamId",
+         "timestamp",
+       ],
+       "streamError": [
+         "at",
+         "chatId",
+         "code",
+         "eventId",
+         "message",
+         "messageId",
+         "streamId",
+       ],
+       "streamFinished": [
+         "chatId",
+         "conversationId",
+         "eventId",
+         "finishedAt",
+         "fullContent",
+         "messageId",
+         "streamId",
+         "totalChunks",
+         "userId",
+       ],
+       "streamStarted": [
+         "chatId",
+         "eventId",
+         "messageId",
+         "startedAt",
+         "streamId",
+         "userId",
+       ],
+       "usageIncremented": [
+         "anonymousId",
+         "at",
+         "conversationId",
+         "eventId",
+         "tokensUsed",
+         "userId",
+       ],
+     }
+    `);
   });
 
   it('pattern/event keys map should stay stable', () => {
@@ -256,31 +272,31 @@ describe('Chat contract shapes snapshot', () => {
       patternKeys: sortedKeys(CHAT_PATTERNS as Record<string, unknown>),
       eventKeys: sortedKeys(CHAT_EVENTS as Record<string, unknown>),
     }).toMatchInlineSnapshot(`
-{
-  "eventKeys": [
-    "chatCreated",
-    "chatDeleted",
-    "messageCreated",
-    "streamChunk",
-    "streamError",
-    "streamFinished",
-    "streamStarted",
-    "usageIncremented",
-  ],
-  "patternKeys": [
-    "createChat",
-    "deleteChat",
-    "getChat",
-    "getChatHistory",
-    "getUsageStats",
-    "health",
-    "listChats",
-    "renameChat",
-    "sendMessage",
-    "updateFirstMessage",
-  ],
-}
-`);
+     {
+       "eventKeys": [
+         "chatCreated",
+         "chatDeleted",
+         "messageCreated",
+         "streamChunk",
+         "streamError",
+         "streamFinished",
+         "streamStarted",
+         "usageIncremented",
+       ],
+       "patternKeys": [
+         "createChat",
+         "deleteChat",
+         "getChat",
+         "getChatHistory",
+         "getUsageStats",
+         "health",
+         "listChats",
+         "renameChat",
+         "sendMessage",
+         "updateFirstMessage",
+       ],
+     }
+    `);
   });
 
   it('response envelope v1 shape should remain stable', () => {
@@ -306,26 +322,26 @@ describe('Chat contract shapes snapshot', () => {
       envelopeData: sortedKeys(envelope.data),
       envelopeMessage: sortedKeys(envelope.data.message),
     }).toMatchInlineSnapshot(`
-{
-  "envelope": [
-    "data",
-    "version",
-  ],
-  "envelopeData": [
-    "conversationId",
-    "limit",
-    "message",
-    "remaining",
-    "tier",
-  ],
-  "envelopeMessage": [
-    "content",
-    "createdAt",
-    "id",
-    "role",
-    "tokensUsed",
-  ],
-}
-`);
+     {
+       "envelope": [
+         "data",
+         "version",
+       ],
+       "envelopeData": [
+         "conversationId",
+         "limit",
+         "message",
+         "remaining",
+         "tier",
+       ],
+       "envelopeMessage": [
+         "content",
+         "createdAt",
+         "id",
+         "role",
+         "tokensUsed",
+       ],
+     }
+    `);
   });
 });

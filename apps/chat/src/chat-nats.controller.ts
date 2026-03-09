@@ -1,5 +1,6 @@
 import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
+import { randomUUID } from 'crypto';
 import { ChatDomainService } from './chat-domain.service';
 import { CHAT_EVENTS, CHAT_PATTERNS } from 'libs/contracts/chat';
 import type {
@@ -64,6 +65,7 @@ export class ChatNatsController {
 
     if (streamId) {
       this.eventsPublisher.emitStreamStarted({
+        eventId: randomUUID(),
         correlationId,
         streamId,
         chatId: requestedChatId,
@@ -85,6 +87,7 @@ export class ChatNatsController {
           seq += 1;
           emittedChunks += 1;
           this.eventsPublisher.emitStreamChunk({
+            eventId: randomUUID(),
             streamId,
             chatId: requestedChatId,
             conversationId: requestedChatId,
@@ -114,6 +117,7 @@ export class ChatNatsController {
               seq += 1;
               emittedChunks += 1;
               this.eventsPublisher.emitStreamChunk({
+                eventId: randomUUID(),
                 correlationId,
                 streamId,
                 chatId: requestedChatId,
@@ -149,6 +153,7 @@ export class ChatNatsController {
     } catch (error: any) {
       if (streamId) {
         this.eventsPublisher.emitStreamError({
+          eventId: randomUUID(),
           correlationId,
           streamId,
           chatId: requestedChatId,
@@ -167,6 +172,7 @@ export class ChatNatsController {
     if (streamId && fullContent) {
       const totalChunks = Math.max(1, emittedChunks);
       this.eventsPublisher.emitStreamFinished({
+        eventId: randomUUID(),
         correlationId,
         streamId,
         chatId: requestedChatId,
@@ -181,6 +187,7 @@ export class ChatNatsController {
 
     try {
       this.eventsPublisher.emitMessageCreated({
+        eventId: randomUUID(),
         correlationId,
         conversationId: result.conversationId || 'unknown',
         messageId: result.message?.id || 'unknown',
@@ -190,6 +197,7 @@ export class ChatNatsController {
         createdAt: new Date().toISOString(),
       });
       this.eventsPublisher.emitUsageIncremented({
+        eventId: randomUUID(),
         correlationId,
         conversationId: result.conversationId,
         userId: payload.userId,
@@ -216,6 +224,7 @@ export class ChatNatsController {
     );
     try {
       this.eventsPublisher.emitSessionCreated({
+        eventId: randomUUID(),
         correlationId: undefined,
         chatId: chat.id,
         ownerId: payload.userId,
@@ -250,6 +259,7 @@ export class ChatNatsController {
     );
     try {
       this.eventsPublisher.emitSessionDeleted({
+        eventId: randomUUID(),
         correlationId: undefined,
         chatId: payload.chatId,
         ownerId: payload.userId,

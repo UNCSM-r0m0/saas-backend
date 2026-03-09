@@ -58,7 +58,13 @@ describe('NATS v1 envelope compatibility', () => {
     const usageService = {
       incrementMessageCount: jest.fn(),
     };
-    const controller = new UsageServiceController(usageService as any);
+    const prisma = {
+      usageConsumedEvent: { findUnique: jest.fn(), create: jest.fn() },
+    };
+    const controller = new UsageServiceController(
+      usageService as any,
+      prisma as any,
+    );
 
     expect(controller.health()).toEqual({
       version: 'v1',
