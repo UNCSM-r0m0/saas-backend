@@ -21,6 +21,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { getUserIdFromReq } from '../common/utils/auth.util';
 import { ChatClient } from './chat.client';
+import type { ChatConversationV1 } from 'libs/contracts/chat';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -132,7 +133,10 @@ export class ChatSessionsController {
       return { success: false, message: 'Usuario no autenticado' };
     }
 
-    const conversation: any = await this.chatClient.getChat(id, userId);
+    const conversation: ChatConversationV1 = await this.chatClient.getChat(
+      id,
+      userId,
+    );
     if (!conversation) {
       return { success: false, message: 'Chat no encontrado' };
     }
@@ -141,9 +145,9 @@ export class ChatSessionsController {
       id: conversation.id,
       title: conversation.title,
       model: 'ollama',
-      messages: conversation.messages.map((msg: any) => ({
+      messages: conversation.messages.map((msg) => ({
         id: msg.id,
-        role: msg.role.toLowerCase(),
+        role: String(msg.role).toLowerCase(),
         content: msg.content,
         createdAt: msg.createdAt,
       })),

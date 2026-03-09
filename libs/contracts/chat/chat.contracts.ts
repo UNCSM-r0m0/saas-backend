@@ -100,6 +100,29 @@ export interface ChatUpdateFirstMessageResponseV1 {
   message: string;
 }
 
+export interface ChatConversationMessageV1 {
+  id: string;
+  role: string;
+  content: string;
+  createdAt: string | Date;
+  model?: string | null;
+  tokensUsed?: number | null;
+}
+
+export interface ChatConversationV1 {
+  id: string;
+  title: string;
+  ownerId?: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  messages: ChatConversationMessageV1[];
+}
+
+export interface ChatHealthResponseV1 {
+  service: 'chat';
+  status: 'ok';
+}
+
 export interface ChatResponseEnvelopeV1<T> {
   version: 'v1';
   data: T;

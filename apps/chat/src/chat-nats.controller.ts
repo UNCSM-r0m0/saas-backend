@@ -101,7 +101,7 @@ export class ChatNatsController {
         let raw: any;
         try {
           raw = await this.chatService.sendMessageStreaming(
-            payload.dto as any,
+            payload.dto,
             payload.userId,
             (content) => {
               if (!content) return;

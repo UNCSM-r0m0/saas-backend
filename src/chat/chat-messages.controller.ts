@@ -16,6 +16,7 @@ import {
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatResponseDto } from './dto/chat-response.dto';
 import { ChatClient } from './chat.client';
+import type { ChatSendMessageResponseV1 } from 'libs/contracts/chat';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -43,7 +44,7 @@ export class ChatMessagesController {
     this.logger.log(
       `📨 [POST /chat/message] Procesando mensaje para usuario ${userId || 'anónimo'}, modelo: ${dto.model || 'ollama'}`,
     );
-    const result: any = await this.chatClient.sendMessage(
+    const result: ChatSendMessageResponseV1 = await this.chatClient.sendMessage(
       dto,
       userId || undefined,
     );

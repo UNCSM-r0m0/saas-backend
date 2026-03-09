@@ -4,8 +4,10 @@ import { lastValueFrom } from 'rxjs';
 import { CHAT_PATTERNS } from 'libs/contracts/chat';
 import type {
   ChatCreatePayload,
+  ChatConversationV1,
   ChatDeletePayload,
   ChatGetPayload,
+  ChatHealthResponseV1,
   ChatHistoryEntryV1,
   ChatHistoryPayload,
   ChatListPayload,
@@ -92,9 +94,9 @@ export class ChatClient {
     return this.send(CHAT_PATTERNS.deleteChat, payload);
   }
 
-  getChat(chatId: string, userId: string): Promise<any> {
+  getChat(chatId: string, userId: string): Promise<ChatConversationV1> {
     const payload: ChatGetPayload = { chatId, userId };
-    return this.send<any>(CHAT_PATTERNS.getChat, payload);
+    return this.send<ChatConversationV1>(CHAT_PATTERNS.getChat, payload);
   }
 
   getChatHistory(chatId: string): Promise<ChatHistoryEntryV1[]> {
@@ -111,6 +113,10 @@ export class ChatClient {
       CHAT_PATTERNS.getUsageStats,
       payload,
     );
+  }
+
+  health(): Promise<ChatHealthResponseV1> {
+    return this.send<ChatHealthResponseV1>(CHAT_PATTERNS.health, {});
   }
 
   updateFirstMessage(
