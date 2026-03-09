@@ -1,13 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import {
+  DeepSeekModule,
+  GeminiModule,
+  OllamaModule,
+  OpenAIModule,
+} from 'libs/ai';
+import { SubscriptionsModule } from 'libs/domain/subscriptions';
+import { UsageService } from 'libs/domain/usage';
 import { PrismaModule } from 'libs/platform/prisma';
-import { SubscriptionsModule } from '../../../src/subscriptions/subscriptions.module';
-import { OllamaModule } from '../../../src/ollama/ollama.module';
-import { GeminiModule } from '../../../src/gemini/gemini.module';
-import { OpenAIModule } from '../../../src/openai/openai.module';
-import { DeepSeekModule } from '../../../src/deepseek/deepseek.module';
-import { UsageService } from '../../../src/usage/usage.service';
 import { ChatNatsController } from './chat-nats.controller';
 import { ChatEventsPublisher } from './chat-events.publisher';
 import { ChatDomainService } from './chat-domain.service';

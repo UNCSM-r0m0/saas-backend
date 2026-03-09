@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthServiceController } from './auth-service.controller';
-import { PrismaModule } from 'src/prisma/prisma.module';
+import { PrismaModule } from 'libs/platform/prisma';
 import { UsersService } from 'libs/users';
 import { AuthDomainService } from './auth-domain.service';
 import { RefreshTokenService } from './refresh-token.service';

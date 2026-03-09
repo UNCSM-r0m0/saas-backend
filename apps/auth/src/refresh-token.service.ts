@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from 'libs/platform/prisma';
 import * as crypto from 'crypto';
 
 function parseDurationToMs(value: string, fallbackMs: number): number {

@@ -46,14 +46,19 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
    - `billing` consume `chat.events.usage.incremented` y `chat.events.message.created`.
    - Nuevo modelo de auditoría: `billing.billing_usage_events`.
 
+8. Sprint A (desacople de apps respecto a `src/`)
+   - `apps/usage` ahora usa servicios de dominio locales (`usage-domain`, `usage-subscriptions`).
+   - `apps/billing`, `apps/auth`, `apps/users` migrados a `libs/platform/prisma`.
+   - `apps/chat` consume dependencias via `libs/*` (sin imports directos a `src/*` en la app).
+
 ## Siguiente fase recomendada
 
-1. Aislar `ChatService` por app
-   - Crear capa de dominio propia en `apps/chat` y dejar en gateway solo clientes NATS.
-
-2. Contratos de respuesta versionados
+1. Contratos de respuesta versionados
    - Formalizar respuestas NATS (DTOs de respuesta), no solo payloads de request.
 
-3. Suite de validación
+2. Suite de validación
    - Tests de contrato para `CHAT_PATTERNS`/`CHAT_EVENTS`.
    - Smoke tests automatizados HTTP + WS para `/api/chat/*`.
+
+3. Observabilidad y runbook
+   - Correlation IDs cross-service, logging consistente y playbook de incidentes.
