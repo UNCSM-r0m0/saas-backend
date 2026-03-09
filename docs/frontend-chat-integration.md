@@ -88,6 +88,31 @@ Este documento define lo que el frontend (`r3-chat`) debe implementar para mante
 - Errores `LIMIT_EXCEEDED` y `PREMIUM_REQUIRED` se muestran bien.
 - Reconexion de socket/stream no duplica mensajes.
 
+## Checklist QA WS (reconexion + fallback visual)
+
+1. Reconexion durante stream
+   - iniciar `sendMessage` y forzar corte de red temporal.
+   - al reconectar, la UI no debe duplicar burbujas ni volver a enviar el mismo prompt automaticamente.
+   - si el stream quedo incompleto, mostrar estado "interrumpido" con accion "reintentar".
+
+2. Consistencia `chatId` vs `conversationId`
+   - durante `responseChunk`, renderizar por `chatId` actual.
+   - en `responseEnd`, si llega `conversationId` distinto, consolidar store (id canonico) sin perder texto ya renderizado.
+
+3. Fallback visual por error de stream
+   - cuando llegue `error.code = STREAM_ERROR`, mostrar toast/mensaje no tecnico:
+     - "No se pudo completar en tiempo real, intentaremos modo normal".
+   - ejecutar fallback a `POST /api/chat/message` y conservar el historial UI del mismo chat.
+
+4. Control de estados de carga
+   - `responseStart` activa estado "pensando".
+   - `responseEnd` o `error` siempre desactivan estado de carga.
+   - al cerrar modal/pantalla, limpiar listeners WS para evitar memory leaks.
+
+5. Telemetria minima recomendada
+   - registrar evento cliente: `ws_stream_started`, `ws_stream_completed`, `ws_stream_failed`, `ws_stream_reconnected`.
+   - incluir `chatId`, `conversationId`, `messageId`, `model`, `durationMs`.
+
 ## Nota de arquitectura
 
 El split de controladores no cambia rutas publicas en este paso, pero prepara el terreno para mover mas logica de chat a NATS y reducir acoplamiento con el gateway.
