@@ -7,6 +7,7 @@ Archivos clave:
 - migration-plan.md: plan por fases, decisiones y checklist.
 - frontend-chat-integration.md: guia de integracion frontend para chat tras el split de controladores.
 - chat-microservices-roadmap.md: estado de migracion de chat y siguientes fases.
+- railway-university-deploy-checklist.md: guia rapida de despliegue en Railway para demo universitaria.
 
 Reglas de trabajo:
 
