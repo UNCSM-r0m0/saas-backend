@@ -237,8 +237,9 @@ export class ChatGateway
           const piece = fullContent.slice(i, i + chunkSize);
           if (!piece) continue;
           chunkCount++;
-          this.emitChat(client, finalChatId, 'responseChunk', {
-            chatId: finalChatId,
+          this.emitChat(client, chatId, 'responseChunk', {
+            chatId,
+            conversationId: finalChatId,
             messageId,
             seq: ++seq,
             partial: true,
@@ -259,8 +260,8 @@ export class ChatGateway
           return;
         }
 
-        this.emitChat(client, finalChatId, 'responseEnd', {
-          chatId: finalChatId,
+        this.emitChat(client, chatId, 'responseEnd', {
+          chatId,
           conversationId: finalChatId,
           messageId,
           fullContent,
