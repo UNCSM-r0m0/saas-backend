@@ -9,6 +9,8 @@ export interface ChatSendMessageDto {
 export interface ChatSendMessagePayload {
   dto: ChatSendMessageDto;
   userId?: string;
+  streamId?: string;
+  messageId?: string;
 }
 
 export interface ChatCreatePayload {
@@ -59,11 +61,43 @@ export interface ChatMessageCreatedEvent {
   createdAt: string;
 }
 
+export interface ChatStreamStartedEvent {
+  streamId: string;
+  chatId: string;
+  messageId: string;
+  userId?: string;
+  startedAt: string;
+}
+
+export interface ChatStreamChunkEvent {
+  streamId: string;
+  chatId: string;
+  conversationId?: string;
+  messageId: string;
+  seq: number;
+  content: string;
+  contentType?: 'markdown' | 'code';
+  timestamp: string;
+}
+
 export interface ChatStreamFinishedEvent {
+  streamId?: string;
+  chatId?: string;
+  messageId?: string;
   conversationId: string;
   userId?: string;
   totalChunks?: number;
+  fullContent?: string;
   finishedAt: string;
+}
+
+export interface ChatStreamErrorEvent {
+  streamId: string;
+  chatId: string;
+  messageId: string;
+  code: string;
+  message: string;
+  at: string;
 }
 
 export interface ChatUsageIncrementedEvent {

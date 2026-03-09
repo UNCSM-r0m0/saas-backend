@@ -15,6 +15,7 @@ import { WsEmitterService } from '../common/ws/ws-emitter.service';
 import { ChatGatewayAuthService } from './gateway/chat-gateway-auth.service';
 import { ChatGatewayRoomService } from './gateway/chat-gateway-room.service';
 import { ChatClient } from './chat.client';
+import { ChatStreamSessionService } from './gateway/chat-stream-session.service';
 
 interface AuthSocket extends Socket {
   user?: { sub?: string } | null;
@@ -51,6 +52,7 @@ export class ChatGateway
     private chatClient: ChatClient,
     private authService: ChatGatewayAuthService,
     private roomService: ChatGatewayRoomService,
+    private streamSessions: ChatStreamSessionService,
   ) {}
 
   afterInit(server: Server) {
@@ -156,6 +158,7 @@ export class ChatGateway
       client.user?.sub,
       chatId,
       message,
+      broadcast,
     );
   }
 
@@ -175,6 +178,7 @@ export class ChatGateway
     userId: string | undefined,
     chatId: string,
     message: string,
+    broadcast: boolean,
   ) {
     try {
       // El gateway ya no genera IA localmente: delega al microservicio chat (NATS)
@@ -184,31 +188,24 @@ export class ChatGateway
       const messageId = randomUUID
         ? randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      this.emitChat(client, chatId, 'responseStart', {
-        chatId,
+      const streamId = randomUUID
+        ? randomUUID()
+        : `${Date.now()}-stream-${Math.random().toString(36).slice(2)}`;
+
+      this.streamSessions.register({
+        streamId,
         messageId,
-        content: 'Pensando...',
-        timestamp: new Date().toISOString(),
+        chatId,
+        clientId: client.id,
+        broadcast,
       });
-      this.logger.log(`📤 [START] Enviando responseStart a sala ${chatId}`);
 
-      let chunkCount = 0;
-      let seq = 0;
-      let aborted = false;
-
-      const onDisconnect = (reason: string) => {
-        aborted = true;
-        this.logger.warn(
-          `Client disconnected during stream: ${client.id} (${reason})`,
-        );
-      };
-      client.once('disconnect', onDisconnect);
       this.activeStreams.set(messageId, () => {
-        aborted = true;
+        this.streamSessions.remove(streamId);
       });
 
       try {
-        const result = (await this.chatClient.sendMessage(
+        await this.chatClient.sendMessage(
           {
             content: message,
             model: data.model,
@@ -216,65 +213,11 @@ export class ChatGateway
             anonymousId: userId ? undefined : chatId,
           },
           userId,
-        )) as any;
-
-        const fullContent = String(result?.message?.content ?? '');
-        const finalChatId = String(result?.conversationId ?? chatId);
-
-        if (!fullContent) {
-          this.emitChat(client, chatId, 'error', {
-            message: 'El servicio chat no devolvió contenido.',
-            code: 'EMPTY_RESPONSE',
-            chatId,
-            messageId,
-          });
-          return;
-        }
-
-        const chunkSize = 120;
-        for (let i = 0; i < fullContent.length; i += chunkSize) {
-          if (aborted) break;
-          const piece = fullContent.slice(i, i + chunkSize);
-          if (!piece) continue;
-          chunkCount++;
-          this.emitChat(client, chatId, 'responseChunk', {
-            chatId,
-            conversationId: finalChatId,
-            messageId,
-            seq: ++seq,
-            partial: true,
-            content: piece,
-            contentType: 'markdown',
-            timestamp: new Date().toISOString(),
-          });
-          await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-
-        client.off('disconnect', onDisconnect);
-        this.activeStreams.delete(messageId);
-
-        if (aborted) {
-          this.logger.warn(
-            `Stream abortado por cliente ${client.id} en chat ${finalChatId}`,
-          );
-          return;
-        }
-
-        this.emitChat(client, chatId, 'responseEnd', {
-          chatId,
-          conversationId: finalChatId,
+          streamId,
           messageId,
-          fullContent,
-          totalChunks: chunkCount,
-          finished: true,
-          timestamp: new Date().toISOString(),
-        });
-
-        this.logger.log(
-          `✅ Respuesta WS completada para ${finalChatId} (${chunkCount} chunks)`,
         );
       } catch (streamError: any) {
-        client.off('disconnect', onDisconnect);
+        this.streamSessions.remove(streamId);
         this.activeStreams.delete(messageId);
         this.logger.error(
           `Error en stream delegado a chat microservice para ${chatId}:`,

@@ -32,8 +32,18 @@ export class ChatClient {
     }
   }
 
-  sendMessage(dto: ChatSendMessagePayload['dto'], userId?: string) {
-    const payload: ChatSendMessagePayload = { dto, userId };
+  sendMessage(
+    dto: ChatSendMessagePayload['dto'],
+    userId?: string,
+    streamId?: string,
+    messageId?: string,
+  ) {
+    const payload: ChatSendMessagePayload = {
+      dto,
+      userId,
+      streamId,
+      messageId,
+    };
     return this.send(CHAT_PATTERNS.sendMessage, payload);
   }
 

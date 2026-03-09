@@ -29,10 +29,71 @@ export class ChatNatsController {
 
   @MessagePattern(CHAT_PATTERNS.sendMessage)
   async sendMessage(@Payload() payload: ChatSendMessagePayload) {
-    const result = await this.chatService.sendMessage(
-      payload.dto,
-      payload.userId,
-    );
+    const streamId = payload.streamId;
+    const messageId = payload.messageId || 'unknown';
+    const requestedChatId =
+      payload.dto?.conversationId || payload.dto?.anonymousId || 'temp-chat-id';
+
+    if (streamId) {
+      this.eventsPublisher.emitStreamStarted({
+        streamId,
+        chatId: requestedChatId,
+        messageId,
+        userId: payload.userId,
+        startedAt: new Date().toISOString(),
+      });
+    }
+
+    let result: any;
+    try {
+      result = await this.chatService.sendMessage(payload.dto, payload.userId);
+    } catch (error: any) {
+      if (streamId) {
+        this.eventsPublisher.emitStreamError({
+          streamId,
+          chatId: requestedChatId,
+          messageId,
+          code: 'STREAM_ERROR',
+          message: error?.message || 'Error interno del stream',
+          at: new Date().toISOString(),
+        });
+      }
+      throw error;
+    }
+
+    const finalChatId = String(result?.conversationId || requestedChatId);
+    const fullContent = String(result?.message?.content || '');
+
+    if (streamId && fullContent) {
+      const chunkSize = 120;
+      let seq = 0;
+      for (let i = 0; i < fullContent.length; i += chunkSize) {
+        const content = fullContent.slice(i, i + chunkSize);
+        if (!content) continue;
+        seq++;
+        this.eventsPublisher.emitStreamChunk({
+          streamId,
+          chatId: requestedChatId,
+          conversationId: finalChatId,
+          messageId,
+          seq,
+          content,
+          contentType: 'markdown',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      this.eventsPublisher.emitStreamFinished({
+        streamId,
+        chatId: requestedChatId,
+        conversationId: finalChatId,
+        messageId,
+        userId: payload.userId,
+        totalChunks: seq,
+        fullContent,
+        finishedAt: new Date().toISOString(),
+      });
+    }
 
     try {
       this.eventsPublisher.emitMessageCreated({
@@ -49,11 +110,6 @@ export class ChatNatsController {
         anonymousId: payload.dto?.anonymousId,
         tokensUsed: result.message?.tokensUsed ?? 0,
         at: new Date().toISOString(),
-      });
-      this.eventsPublisher.emitStreamFinished({
-        conversationId: result.conversationId || 'unknown',
-        userId: payload.userId,
-        finishedAt: new Date().toISOString(),
       });
     } catch (error) {
       this.eventsPublisher.logEmitError(CHAT_EVENTS.messageCreated, error);

@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -53,17 +54,30 @@ async function bootstrap() {
     .addBearerAuth()
     .addTag('auth', 'Autenticación (Local, Google, GitHub)')
     .addTag('users', 'Gestión de usuarios')
-    .addTag('chat', 'Chat con IA (Anónimos: 3 msg, Registrados: 10 msg, Premium: 1000 msg)')
+    .addTag(
+      'chat',
+      'Chat con IA (Anónimos: 3 msg, Registrados: 10 msg, Premium: 1000 msg)',
+    )
     .addTag('stripe', 'Pagos y suscripciones con Stripe')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.NATS,
+    options: {
+      servers: [process.env.NATS_URL || 'nats://localhost:4222'],
+    },
+  });
+  await app.startAllMicroservices();
+
   const port = process.env.PORT ?? 3000;
   await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 Application is running on: http://localhost:${port}/api`);
-  console.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+  console.log(
+    `📚 Swagger docs available at: http://localhost:${port}/api/docs`,
+  );
 }
 bootstrap();

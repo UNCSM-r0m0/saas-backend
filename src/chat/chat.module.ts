@@ -4,6 +4,7 @@ import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { ChatSessionsController } from './chat-sessions.controller';
 import { ChatMessagesController } from './chat-messages.controller';
+import { ChatStreamEventsController } from './chat-stream-events.controller';
 import { ChatGateway } from './chat.gateway';
 import { ChatClient } from './chat.client';
 import { UsageService } from '../usage/usage.service';
@@ -15,6 +16,7 @@ import { DeepSeekModule } from '../deepseek/deepseek.module';
 import { AuthModule } from '../auth/auth.module';
 import { ChatGatewayAuthService } from './gateway/chat-gateway-auth.service';
 import { ChatGatewayRoomService } from './gateway/chat-gateway-room.service';
+import { ChatStreamSessionService } from './gateway/chat-stream-session.service';
 
 @Module({
   imports: [
@@ -41,8 +43,14 @@ import { ChatGatewayRoomService } from './gateway/chat-gateway-room.service';
     ChatClient,
     ChatGatewayAuthService,
     ChatGatewayRoomService,
+    ChatStreamSessionService,
   ],
-  controllers: [ChatController, ChatSessionsController, ChatMessagesController],
+  controllers: [
+    ChatController,
+    ChatSessionsController,
+    ChatMessagesController,
+    ChatStreamEventsController,
+  ],
   exports: [ChatService, ChatClient],
 })
 export class ChatModule {}

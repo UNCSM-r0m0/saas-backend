@@ -5,6 +5,9 @@ import {
   ChatMessageCreatedEvent,
   ChatSessionCreatedEvent,
   ChatSessionDeletedEvent,
+  ChatStreamChunkEvent,
+  ChatStreamErrorEvent,
+  ChatStreamStartedEvent,
   ChatStreamFinishedEvent,
   ChatUsageIncrementedEvent,
 } from 'libs/contracts/chat';
@@ -21,8 +24,20 @@ export class ChatEventsPublisher {
     this.eventsClient.emit(CHAT_EVENTS.messageCreated, payload);
   }
 
+  emitStreamStarted(payload: ChatStreamStartedEvent) {
+    this.eventsClient.emit(CHAT_EVENTS.streamStarted, payload);
+  }
+
+  emitStreamChunk(payload: ChatStreamChunkEvent) {
+    this.eventsClient.emit(CHAT_EVENTS.streamChunk, payload);
+  }
+
   emitStreamFinished(payload: ChatStreamFinishedEvent) {
     this.eventsClient.emit(CHAT_EVENTS.streamFinished, payload);
+  }
+
+  emitStreamError(payload: ChatStreamErrorEvent) {
+    this.eventsClient.emit(CHAT_EVENTS.streamError, payload);
   }
 
   emitUsageIncremented(payload: ChatUsageIncrementedEvent) {
