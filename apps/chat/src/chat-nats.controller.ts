@@ -9,6 +9,7 @@ import type {
   ChatHistoryPayload,
   ChatListPayload,
   ChatRenamePayload,
+  ChatResponseEnvelopeV1,
   ChatSendMessageResponseV1,
   ChatSendMessagePayload,
   ChatUpdateFirstMessagePayload,
@@ -45,7 +46,11 @@ export class ChatNatsController {
 
   @MessagePattern(CHAT_PATTERNS.health)
   health() {
-    return { service: 'chat', status: 'ok' };
+    return this.v1({ service: 'chat', status: 'ok' });
+  }
+
+  private v1<T>(data: T): ChatResponseEnvelopeV1<T> {
+    return { version: 'v1', data };
   }
 
   @MessagePattern(CHAT_PATTERNS.sendMessage)
@@ -188,7 +193,7 @@ export class ChatNatsController {
       this.eventsPublisher.logEmitError(CHAT_EVENTS.messageCreated, error);
     }
 
-    return result;
+    return this.v1(result);
   }
 
   @MessagePattern(CHAT_PATTERNS.createChat)
@@ -206,21 +211,22 @@ export class ChatNatsController {
     } catch (error) {
       this.eventsPublisher.logEmitError(CHAT_EVENTS.chatCreated, error);
     }
-    return chat;
+    return this.v1(chat);
   }
 
   @MessagePattern(CHAT_PATTERNS.listChats)
   async listChats(@Payload() payload: ChatListPayload) {
-    return this.chatService.listChats(payload.userId);
+    return this.v1(await this.chatService.listChats(payload.userId));
   }
 
   @MessagePattern(CHAT_PATTERNS.renameChat)
   async renameChat(@Payload() payload: ChatRenamePayload) {
-    return this.chatService.renameChat(
+    const result = await this.chatService.renameChat(
       payload.chatId,
       payload.title,
       payload.userId,
     );
+    return this.v1(result ?? { success: true });
   }
 
   @MessagePattern(CHAT_PATTERNS.deleteChat)
@@ -238,30 +244,34 @@ export class ChatNatsController {
     } catch (error) {
       this.eventsPublisher.logEmitError(CHAT_EVENTS.chatDeleted, error);
     }
-    return result;
+    return this.v1(result);
   }
 
   @MessagePattern(CHAT_PATTERNS.getChat)
   async getChat(@Payload() payload: ChatGetPayload) {
-    return this.chatService.getChat(payload.chatId, payload.userId);
+    return this.v1(
+      await this.chatService.getChat(payload.chatId, payload.userId),
+    );
   }
 
   @MessagePattern(CHAT_PATTERNS.getChatHistory)
   async getChatHistory(@Payload() payload: ChatHistoryPayload) {
-    return this.chatService.getChatHistory(payload.chatId);
+    return this.v1(await this.chatService.getChatHistory(payload.chatId));
   }
 
   @MessagePattern(CHAT_PATTERNS.getUsageStats)
   async getUsageStats(@Payload() payload: ChatUsageStatsPayload) {
-    return this.chatService.getUserUsageStats(payload.userId);
+    return this.v1(await this.chatService.getUserUsageStats(payload.userId));
   }
 
   @MessagePattern(CHAT_PATTERNS.updateFirstMessage)
   async updateFirstMessage(@Payload() payload: ChatUpdateFirstMessagePayload) {
-    return this.chatService.updateFirstMessageAndTitle(
-      payload.chatId,
-      payload.userId,
-      payload.content,
+    return this.v1(
+      await this.chatService.updateFirstMessageAndTitle(
+        payload.chatId,
+        payload.userId,
+        payload.content,
+      ),
     );
   }
 }

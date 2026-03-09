@@ -100,6 +100,11 @@ export interface ChatUpdateFirstMessageResponseV1 {
   message: string;
 }
 
+export interface ChatResponseEnvelopeV1<T> {
+  version: 'v1';
+  data: T;
+}
+
 export interface ChatMessageCreatedEvent {
   conversationId: string;
   messageId: string;

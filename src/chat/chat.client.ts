@@ -10,6 +10,7 @@ import type {
   ChatHistoryPayload,
   ChatListPayload,
   ChatRenamePayload,
+  ChatResponseEnvelopeV1,
   ChatSendMessageResponseV1,
   ChatSendMessagePayload,
   ChatSessionV1,
@@ -25,9 +26,25 @@ export class ChatClient {
 
   constructor(@Inject('CHAT_NATS') private readonly client: ClientProxy) {}
 
+  private unwrapV1<T>(response: T | ChatResponseEnvelopeV1<T>): T {
+    if (
+      response &&
+      typeof response === 'object' &&
+      'version' in (response as any) &&
+      (response as any).version === 'v1' &&
+      'data' in (response as any)
+    ) {
+      return (response as any).data as T;
+    }
+    return response as T;
+  }
+
   private async send<T>(pattern: string, payload?: unknown): Promise<T> {
     try {
-      return await lastValueFrom(this.client.send<T>(pattern, payload ?? {}));
+      const raw = await lastValueFrom(
+        this.client.send<T | ChatResponseEnvelopeV1<T>>(pattern, payload ?? {}),
+      );
+      return this.unwrapV1<T>(raw);
     } catch (error: any) {
       const statusCode =
         error?.statusCode ?? error?.response?.statusCode ?? 500;

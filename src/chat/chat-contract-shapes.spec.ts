@@ -282,4 +282,50 @@ describe('Chat contract shapes snapshot', () => {
 }
 `);
   });
+
+  it('response envelope v1 shape should remain stable', () => {
+    const envelope = {
+      version: 'v1',
+      data: {
+        conversationId: 'conv-id',
+        message: {
+          id: 'msg-id',
+          role: 'assistant',
+          content: 'hola',
+          createdAt: new Date().toISOString(),
+          tokensUsed: 10,
+        },
+        remaining: 9,
+        limit: 10,
+        tier: 'REGISTERED',
+      },
+    };
+
+    expect({
+      envelope: sortedKeys(envelope),
+      envelopeData: sortedKeys(envelope.data),
+      envelopeMessage: sortedKeys(envelope.data.message),
+    }).toMatchInlineSnapshot(`
+{
+  "envelope": [
+    "data",
+    "version",
+  ],
+  "envelopeData": [
+    "conversationId",
+    "limit",
+    "message",
+    "remaining",
+    "tier",
+  ],
+  "envelopeMessage": [
+    "content",
+    "createdAt",
+    "id",
+    "role",
+    "tokensUsed",
+  ],
+}
+`);
+  });
 });
