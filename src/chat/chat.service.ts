@@ -262,14 +262,7 @@ export class ChatService {
       }
     }
 
-    // 9. Incrementar contador de uso
-    await this.usageService.incrementMessageCount(
-      tokensUsed,
-      userId,
-      userId ? undefined : dto.anonymousId,
-    );
-
-    // 10. Retornar respuesta en formato esperado por el frontend
+    // 9. Retornar respuesta en formato esperado por el frontend
     const response = {
       conversationId: chatId !== 'anonymous' ? chatId : 'temp-chat-id',
       message: {

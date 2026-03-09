@@ -236,3 +236,23 @@ model UsageRecord {
   @@map("usage_records")
   @@schema("usage")
 }
+
+model BillingUsageEvent {
+  id             String   @id @default(uuid())
+  source         String
+  eventType      String
+  userId         String?
+  anonymousId    String?
+  conversationId String?
+  messageId      String?
+  model          String?
+  tokensUsed     Int      @default(0)
+  occurredAt     DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([eventType, occurredAt])
+  @@index([userId, occurredAt])
+  @@index([conversationId, occurredAt])
+  @@map("billing_usage_events")
+  @@schema("billing")
+}

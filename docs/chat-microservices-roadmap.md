@@ -8,8 +8,7 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
    - Se extrajeron servicios de soporte para WS:
      - `src/chat/gateway/chat-gateway-auth.service.ts`
      - `src/chat/gateway/chat-gateway-room.service.ts`
-     - `src/chat/gateway/chat-gateway-concurrency.service.ts`
-   - `ChatGateway` conserva orquestación de stream, pero auth/rooms/concurrencia ya no están embebidos.
+   - `ChatGateway` conserva el borde WS y delega a NATS.
 
 2. Gateway más liviano para operaciones de sesión
    - Eventos WS de sesión (`newChat`, `listChats`, `renameChat`, `deleteChat`, `getHistory`) ahora usan `ChatClient` (NATS) en lugar de acceso directo del gateway.
@@ -18,11 +17,15 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
    - Se tiparon payloads NATS en `libs/contracts/chat/chat.contracts.ts`.
    - Se tipó uso en `src/chat/chat.client.ts` y `apps/chat/src/chat-nats.controller.ts`.
 
-4. Eventos de dominio por NATS
+4. Streaming por eventos NATS + eventos de dominio
    - Se añadieron eventos en `libs/contracts/chat/chat.patterns.ts` (`CHAT_EVENTS`).
+   - Streaming WS ahora se relaya desde eventos NATS (`stream.started`, `stream.chunk`, `stream.finished`, `stream.error`).
    - Se publica desde `apps/chat/src/chat-events.publisher.ts` en operaciones clave:
      - `chat.events.message.created`
+     - `chat.events.stream.started`
+     - `chat.events.stream.chunk`
      - `chat.events.stream.finished`
+     - `chat.events.stream.error`
      - `chat.events.usage.incremented`
      - `chat.events.session.created`
      - `chat.events.session.deleted`
@@ -37,20 +40,19 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
    - Nuevo health script NATS de chat: `scripts/nats-chat-health.js`.
    - `manage-all.ps1` ahora expone `chat.health` y refleja schemas `users/chat/billing/usage`.
 
+7. Consumidores reales de eventos
+   - `usage` consume `chat.events.usage.incremented` y actualiza `usage.usage_records`.
+   - `billing` consume `chat.events.usage.incremented` y `chat.events.message.created`.
+   - Nuevo modelo de auditoría: `billing.billing_usage_events`.
+
 ## Siguiente fase recomendada
 
-1. Streaming real sobre microservicio chat
-   - Definir canal/event bus para chunks (NATS pub/sub o WS bridge dedicado), para sacar también la generación de `ChatGateway`.
-
-2. Aislar `ChatService` por app
+1. Aislar `ChatService` por app
    - Crear capa de dominio propia en `apps/chat` y dejar en gateway solo clientes NATS.
 
-3. Consumidores de eventos
-   - `usage` y `billing` deben reaccionar a eventos de chat sin acoplamiento directo.
-
-4. Contratos de respuesta versionados
+2. Contratos de respuesta versionados
    - Formalizar respuestas NATS (DTOs de respuesta), no solo payloads de request.
 
-5. Suite de validación
+3. Suite de validación
    - Tests de contrato para `CHAT_PATTERNS`/`CHAT_EVENTS`.
    - Smoke tests automatizados HTTP + WS para `/api/chat/*`.
