@@ -73,14 +73,19 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
       - tests de contratos/envelopes
       - smoke de compose + websocket connect
 
+13. Sprint final (hardening pro)
+    - Logging estructurado JSON para eventos clave de chat/usage/billing.
+    - Script de smoke post-deploy (`scripts/release-smoke.js`) para gateway desplegado.
+    - Workflow CI con `workflow_dispatch` para smoke remoto por `gateway_url`.
+
 ## Siguiente fase recomendada
 
 1. Suite de validación
    - Tests de contrato para `CHAT_PATTERNS`/`CHAT_EVENTS`.
    - Smoke tests automatizados HTTP + WS para `/api/chat/*`.
 
-2. Endurecimiento de observabilidad
-   - Estandarizar logs estructurados JSON y dashboards minimos (latencia, errores, colas).
+2. Dashboard de observabilidad (opcional)
+   - Integrar Loki/Grafana o equivalente para visualizar `correlationId`/`eventId`.
 
-3. Endurecimiento de release
-   - Pipeline de release con migraciones automáticas y smoke post-deploy.
+3. Endurecimiento de release (opcional)
+   - Pipeline de release con migraciones automáticas y smoke post-deploy obligatorio.

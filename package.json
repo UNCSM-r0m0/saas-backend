@@ -35,6 +35,7 @@
     "test": "jest",
     "test:contracts": "jest chat-contracts.spec.ts chat-contract-shapes.spec.ts chat-event-consumers.spec.ts nats-envelope.spec.ts",
     "test:smoke:ws-connect": "node scripts/ws-connect-smoke.js",
+    "test:smoke:release": "node scripts/release-smoke.js",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

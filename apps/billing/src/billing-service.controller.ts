@@ -8,6 +8,7 @@ import type {
   ChatUsageIncrementedEvent,
 } from 'libs/contracts/chat';
 import { PrismaService } from 'libs/platform/prisma';
+import { structuredLog } from '../../../src/common/logging/structured-log.util';
 
 @Controller()
 export class BillingServiceController {
@@ -31,7 +32,14 @@ export class BillingServiceController {
       where: { eventId: payload.eventId },
       select: { id: true },
     });
-    if (exists) return;
+    if (exists) {
+      structuredLog(this.logger, 'debug', 'billing.event.duplicate_ignored', {
+        eventId: payload.eventId,
+        correlationId: payload.correlationId || null,
+        eventType: CHAT_EVENTS.usageIncremented,
+      });
+      return;
+    }
 
     await (this.prisma as any).billingUsageEvent.create({
       data: {
@@ -54,7 +62,14 @@ export class BillingServiceController {
       where: { eventId: payload.eventId },
       select: { id: true },
     });
-    if (exists) return;
+    if (exists) {
+      structuredLog(this.logger, 'debug', 'billing.event.duplicate_ignored', {
+        eventId: payload.eventId,
+        correlationId: payload.correlationId || null,
+        eventType: CHAT_EVENTS.messageCreated,
+      });
+      return;
+    }
 
     await (this.prisma as any).billingUsageEvent.create({
       data: {
@@ -72,8 +87,14 @@ export class BillingServiceController {
       },
     });
 
-    this.logger.debug(
-      `Evento facturable registrado (messageCreated): ${payload.messageId} correlationId=${payload.correlationId || 'n/a'}`,
-    );
+    structuredLog(this.logger, 'debug', 'billing.event.processed', {
+      eventId: payload.eventId,
+      correlationId: payload.correlationId || null,
+      eventType: CHAT_EVENTS.messageCreated,
+      messageId: payload.messageId,
+      conversationId: payload.conversationId,
+      model: payload.model || null,
+      tokensUsed: payload.tokensUsed ?? 0,
+    });
   }
 }

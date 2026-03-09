@@ -45,3 +45,21 @@ Guia operativa para diagnostico rapido durante demo o entorno productivo ligero.
 - `ws-chat-smoke` en verde.
 - Proxy IA disponible (o fallback cloud activo).
 - Frontend apuntando al `PUBLIC_URL` correcto.
+
+## 7) Smoke post-deploy (nivel pro)
+
+- Smoke local/compose:
+  - `npm run test:smoke:release`
+- Smoke remoto (gateway desplegado):
+  - `GATEWAY_URL=https://tu-api.ejemplo.com npm run test:smoke:release`
+- CI manual remoto:
+  - Ejecutar workflow `Microservices CI` con `workflow_dispatch` y `gateway_url`.
+
+## 8) Logging estructurado
+
+- Eventos clave de chat/usage/billing se emiten como JSON en logs.
+- Campos recomendados para filtros en logs:
+  - `event`
+  - `correlationId`
+  - `eventId`
+  - `conversationId`

@@ -3,6 +3,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { randomUUID } from 'crypto';
 import { ChatDomainService } from './chat-domain.service';
 import { CHAT_EVENTS, CHAT_PATTERNS } from 'libs/contracts/chat';
+import { structuredLog } from '../../../src/common/logging/structured-log.util';
 import type {
   ChatCreatePayload,
   ChatDeletePayload,
@@ -62,6 +63,14 @@ export class ChatNatsController {
     const correlationId = payload.correlationId;
     const requestedChatId =
       payload.dto?.conversationId || payload.dto?.anonymousId || 'temp-chat-id';
+
+    structuredLog(this.logger, 'debug', 'chat.send_message.start', {
+      correlationId: correlationId || null,
+      stream: Boolean(streamId),
+      requestedChatId,
+      model: payload.dto?.model || 'ollama',
+      userId: payload.userId || null,
+    });
 
     if (streamId) {
       this.eventsPublisher.emitStreamStarted({
@@ -152,6 +161,13 @@ export class ChatNatsController {
         };
       }
     } catch (error: any) {
+      structuredLog(this.logger, 'error', 'chat.send_message.error', {
+        correlationId: correlationId || null,
+        stream: Boolean(streamId),
+        requestedChatId,
+        messageId,
+        error: error?.message || 'unknown',
+      });
       if (streamId) {
         this.eventsPublisher.emitStreamError({
           eventId: randomUUID(),
@@ -210,9 +226,13 @@ export class ChatNatsController {
       this.eventsPublisher.logEmitError(CHAT_EVENTS.messageCreated, error);
     }
 
-    this.logger.debug(
-      `chat.sendMessage completado correlationId=${correlationId || 'n/a'} conversationId=${result.conversationId}`,
-    );
+    structuredLog(this.logger, 'debug', 'chat.send_message.completed', {
+      correlationId: correlationId || null,
+      conversationId: result.conversationId,
+      stream: Boolean(streamId),
+      chunks: emittedChunks,
+      model: payload.dto?.model || 'ollama',
+    });
 
     return this.v1(result);
   }

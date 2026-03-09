@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      gateway_url:
+        description: 'Gateway URL for post-deploy smoke (e.g. https://api.example.com)'
+        required: false
+        type: string
 
 jobs:
   build-and-contracts:
@@ -78,3 +84,24 @@ jobs:
       - name: Stop compose stack
         if: always()
         run: docker compose -f docker-compose.prod.yml down -v
+
+  release-smoke-remote:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.gateway_url != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run release smoke against deployed gateway
+        env:
+          GATEWAY_URL: ${{ github.event.inputs.gateway_url }}
+        run: npm run test:smoke:release

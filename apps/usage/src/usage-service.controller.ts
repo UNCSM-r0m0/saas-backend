@@ -5,6 +5,7 @@ import { USAGE_PATTERNS } from 'libs/contracts/usage';
 import type { ChatUsageIncrementedEvent } from 'libs/contracts/chat';
 import type { UsageResponseEnvelopeV1 } from 'libs/contracts/usage';
 import { PrismaService } from 'libs/platform/prisma';
+import { structuredLog } from '../../../src/common/logging/structured-log.util';
 import { UsageDomainService } from './usage-domain.service';
 
 @Controller()
@@ -36,9 +37,12 @@ export class UsageServiceController {
       select: { id: true },
     });
     if (alreadyProcessed) {
-      this.logger.debug(
-        `Evento duplicado omitido eventId=${payload.eventId} correlationId=${payload.correlationId || 'n/a'}`,
-      );
+      structuredLog(this.logger, 'debug', 'usage.event.duplicate_ignored', {
+        eventId: payload.eventId,
+        correlationId: payload.correlationId || null,
+        userId: payload.userId || null,
+        anonymousId: payload.anonymousId || null,
+      });
       return;
     }
 
@@ -55,8 +59,13 @@ export class UsageServiceController {
       payload.anonymousId,
     );
 
-    this.logger.debug(
-      `Uso actualizado por evento chat.events.usage.incremented (${payload.userId || payload.anonymousId || 'unknown'}) correlationId=${payload.correlationId || 'n/a'}`,
-    );
+    structuredLog(this.logger, 'debug', 'usage.event.processed', {
+      eventId: payload.eventId,
+      correlationId: payload.correlationId || null,
+      eventType: CHAT_EVENTS.usageIncremented,
+      userId: payload.userId || null,
+      anonymousId: payload.anonymousId || null,
+      tokensUsed: payload.tokensUsed ?? 0,
+    });
   }
 }
