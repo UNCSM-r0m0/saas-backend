@@ -53,7 +53,7 @@ Este documento resume lo que ya se migró y lo que falta para completar la separ
 
 9. Sprint B (versionado de respuestas NATS)
    - `chat` responde con envelope versionado `{ version: 'v1', data }`.
-   - `auth` y `users` migrados a envelope `v1` manteniendo compatibilidad en clientes.
+   - `auth`, `users`, `billing` y `usage` migrados a envelope `v1` en endpoints de salud/respuesta RPC.
    - Clientes gateway (`ChatClient`, `AuthClient`, `UsersClient`) hacen `unwrap` automático para `v1` y legado.
    - Tests de compatibilidad de envelope añadidos.
 

@@ -1,6 +1,8 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { CHAT_EVENTS } from 'libs/contracts/chat';
+import { BILLING_PATTERNS } from 'libs/contracts/billing';
+import type { BillingResponseEnvelopeV1 } from 'libs/contracts/billing';
 import type {
   ChatMessageCreatedEvent,
   ChatUsageIncrementedEvent,
@@ -13,9 +15,13 @@ export class BillingServiceController {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @MessagePattern('billing.health')
+  private v1<T>(data: T): BillingResponseEnvelopeV1<T> {
+    return { version: 'v1', data };
+  }
+
+  @MessagePattern(BILLING_PATTERNS.health)
   health() {
-    return { service: 'billing', status: 'ok' };
+    return this.v1({ service: 'billing', status: 'ok' as const });
   }
 
   @EventPattern(CHAT_EVENTS.usageIncremented)

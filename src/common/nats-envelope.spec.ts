@@ -1,5 +1,7 @@
 import { AuthServiceController } from '../../apps/auth/src/auth-service.controller';
 import { UsersServiceController } from '../../apps/users/src/users-service.controller';
+import { BillingServiceController } from '../../apps/billing/src/billing-service.controller';
+import { UsageServiceController } from '../../apps/usage/src/usage-service.controller';
 
 describe('NATS v1 envelope compatibility', () => {
   it('auth health should return v1 envelope', () => {
@@ -39,6 +41,28 @@ describe('NATS v1 envelope compatibility', () => {
     expect(controller.health()).toEqual({
       version: 'v1',
       data: { service: 'users', status: 'ok' },
+    });
+  });
+
+  it('billing health should return v1 envelope', () => {
+    const prisma = { billingUsageEvent: { create: jest.fn() } };
+    const controller = new BillingServiceController(prisma as any);
+
+    expect(controller.health()).toEqual({
+      version: 'v1',
+      data: { service: 'billing', status: 'ok' },
+    });
+  });
+
+  it('usage health should return v1 envelope', () => {
+    const usageService = {
+      incrementMessageCount: jest.fn(),
+    };
+    const controller = new UsageServiceController(usageService as any);
+
+    expect(controller.health()).toEqual({
+      version: 'v1',
+      data: { service: 'usage', status: 'ok' },
     });
   });
 });
