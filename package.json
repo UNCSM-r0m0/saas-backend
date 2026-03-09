@@ -125,6 +125,11 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "moduleNameMapper": {
+      "^libs/(.*)$": "<rootDir>/../libs/$1",
+      "^apps/(.*)$": "<rootDir>/../apps/$1",
+      "^src/(.*)$": "<rootDir>/$1"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

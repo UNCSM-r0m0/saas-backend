@@ -52,6 +52,54 @@ export interface ChatUpdateFirstMessagePayload {
   content: string;
 }
 
+export interface ChatMessageV1 {
+  id: string;
+  role: 'assistant' | 'user' | 'system';
+  content: string;
+  createdAt: string | Date;
+  tokensUsed?: number;
+}
+
+export interface ChatSendMessageResponseV1 {
+  conversationId: string;
+  message: ChatMessageV1;
+  remaining: number;
+  limit: number;
+  tier: string;
+}
+
+export interface ChatSessionV1 {
+  id: string;
+  title: string;
+  ownerId?: string | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
+export interface ChatHistoryEntryV1 {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface ChatUsageStatsResponseV1 {
+  todayMessages: number;
+  todayTokens: number;
+  totalMessages: number;
+  totalTokens: number;
+  tier: string;
+  limits: {
+    messagesPerDay: number;
+    maxTokensPerMessage: number;
+    canUploadImages: boolean;
+  };
+}
+
+export interface ChatUpdateFirstMessageResponseV1 {
+  success: boolean;
+  data: { title: string };
+  message: string;
+}
+
 export interface ChatMessageCreatedEvent {
   conversationId: string;
   messageId: string;

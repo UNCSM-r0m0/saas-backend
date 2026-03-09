@@ -6,11 +6,16 @@ import type {
   ChatCreatePayload,
   ChatDeletePayload,
   ChatGetPayload,
+  ChatHistoryEntryV1,
   ChatHistoryPayload,
   ChatListPayload,
   ChatRenamePayload,
+  ChatSendMessageResponseV1,
   ChatSendMessagePayload,
+  ChatSessionV1,
+  ChatUpdateFirstMessageResponseV1,
   ChatUpdateFirstMessagePayload,
+  ChatUsageStatsResponseV1,
   ChatUsageStatsPayload,
 } from 'libs/contracts/chat';
 
@@ -37,24 +42,27 @@ export class ChatClient {
     userId?: string,
     streamId?: string,
     messageId?: string,
-  ) {
+  ): Promise<ChatSendMessageResponseV1> {
     const payload: ChatSendMessagePayload = {
       dto,
       userId,
       streamId,
       messageId,
     };
-    return this.send(CHAT_PATTERNS.sendMessage, payload);
+    return this.send<ChatSendMessageResponseV1>(
+      CHAT_PATTERNS.sendMessage,
+      payload,
+    );
   }
 
-  createChat(userId?: string, title?: string) {
+  createChat(userId?: string, title?: string): Promise<ChatSessionV1> {
     const payload: ChatCreatePayload = { userId, title };
-    return this.send(CHAT_PATTERNS.createChat, payload);
+    return this.send<ChatSessionV1>(CHAT_PATTERNS.createChat, payload);
   }
 
-  listChats(userId: string) {
+  listChats(userId: string): Promise<ChatSessionV1[]> {
     const payload: ChatListPayload = { userId };
-    return this.send(CHAT_PATTERNS.listChats, payload);
+    return this.send<ChatSessionV1[]>(CHAT_PATTERNS.listChats, payload);
   }
 
   renameChat(chatId: string, title: string, userId: string) {
@@ -67,27 +75,40 @@ export class ChatClient {
     return this.send(CHAT_PATTERNS.deleteChat, payload);
   }
 
-  getChat(chatId: string, userId: string) {
+  getChat(chatId: string, userId: string): Promise<any> {
     const payload: ChatGetPayload = { chatId, userId };
-    return this.send(CHAT_PATTERNS.getChat, payload);
+    return this.send<any>(CHAT_PATTERNS.getChat, payload);
   }
 
-  getChatHistory(chatId: string) {
+  getChatHistory(chatId: string): Promise<ChatHistoryEntryV1[]> {
     const payload: ChatHistoryPayload = { chatId };
-    return this.send(CHAT_PATTERNS.getChatHistory, payload);
+    return this.send<ChatHistoryEntryV1[]>(
+      CHAT_PATTERNS.getChatHistory,
+      payload,
+    );
   }
 
-  getUsageStats(userId: string) {
+  getUsageStats(userId: string): Promise<ChatUsageStatsResponseV1> {
     const payload: ChatUsageStatsPayload = { userId };
-    return this.send(CHAT_PATTERNS.getUsageStats, payload);
+    return this.send<ChatUsageStatsResponseV1>(
+      CHAT_PATTERNS.getUsageStats,
+      payload,
+    );
   }
 
-  updateFirstMessage(chatId: string, userId: string, content: string) {
+  updateFirstMessage(
+    chatId: string,
+    userId: string,
+    content: string,
+  ): Promise<ChatUpdateFirstMessageResponseV1> {
     const payload: ChatUpdateFirstMessagePayload = {
       chatId,
       userId,
       content,
     };
-    return this.send(CHAT_PATTERNS.updateFirstMessage, payload);
+    return this.send<ChatUpdateFirstMessageResponseV1>(
+      CHAT_PATTERNS.updateFirstMessage,
+      payload,
+    );
   }
 }

@@ -9,6 +9,7 @@ import type {
   ChatHistoryPayload,
   ChatListPayload,
   ChatRenamePayload,
+  ChatSendMessageResponseV1,
   ChatSendMessagePayload,
   ChatUpdateFirstMessagePayload,
   ChatUsageStatsPayload,
@@ -44,9 +45,16 @@ export class ChatNatsController {
       });
     }
 
-    let result: any;
+    let result: ChatSendMessageResponseV1;
     try {
-      result = await this.chatService.sendMessage(payload.dto, payload.userId);
+      const raw = (await this.chatService.sendMessage(
+        payload.dto,
+        payload.userId,
+      )) as any;
+      result = {
+        ...raw,
+        conversationId: String(raw?.conversationId || requestedChatId),
+      };
     } catch (error: any) {
       if (streamId) {
         this.eventsPublisher.emitStreamError({
