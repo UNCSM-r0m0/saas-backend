@@ -5,6 +5,11 @@
       "source": "kadajett/agent-nestjs-skills",
       "sourceType": "github",
       "computedHash": "68658903272e1015f3ec5084c7d0988216a47f42f675ed819a675250fc6a23cd"
+    },
+    "prisma-database-setup": {
+      "source": "prisma/skills",
+      "sourceType": "github",
+      "computedHash": "72e2360923e949261a15ca1dbcfac5662ec5e851f6045ffb13163a55a083bcea"
     }
   }
 }
