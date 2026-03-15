@@ -1,80 +1,52 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { UsersService } from '../users/users.service';
-import { RegisterDto } from './dto/register.dto';
-import { User } from '../users/entities/user.entity';
-import * as bcrypt from 'bcryptjs';
-import { UserRole, AuthProvider } from '../users/dto/create-user.dto';
+import { Injectable } from '@nestjs/common';
+import { User } from 'libs/users';
+import { RegisterDto } from 'libs/contracts/auth';
+import { AuthClient } from './auth.client';
 
 @Injectable()
 export class AuthService {
-    constructor(
-        private usersService: UsersService,
-        private jwtService: JwtService,
-    ) { }
+  constructor(private authClient: AuthClient) {}
 
-    async validateUser(email: string, password: string): Promise<any> {
-        const user = await this.usersService.findByEmail(email);
-
-        if (!user || !user.password) {
-            return null;
-        }
-
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-
-        if (!isPasswordValid) {
-            return null;
-        }
-
-        if (!user.isActive) {
-            throw new UnauthorizedException('User account is inactive');
-        }
-
-        // Actualizar último login
-        await this.usersService.updateLastLogin(user.id);
-
-        const { password: _, ...result } = user;
-        return result;
+  async validateUser(email: string, password: string): Promise<any> {
+    const user = await this.authClient.validateUser(email, password);
+    if (!user) {
+      return null;
     }
+    return user;
+  }
 
-    async login(user: any) {
-        const payload = { email: user.email, sub: user.id, role: user.role };
-        return {
-            access_token: this.jwtService.sign(payload),
-            user: new User(user),
-        };
-    }
+  async login(user: any) {
+    const tokens = await this.authClient.issueTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+    return { ...tokens, user: new User(user) };
+  }
 
-    async register(registerDto: RegisterDto): Promise<User> {
-        const user = await this.usersService.create({
-            ...registerDto,
-            role: UserRole.USER,
-            provider: AuthProvider.LOCAL,
-        });
+  async register(registerDto: RegisterDto) {
+    return this.authClient.register(registerDto);
+  }
 
-        return user;
-    }
+  async validateOAuthUser(profile: any): Promise<any> {
+    console.log(
+      '🔍 [AuthService] validateOAuthUser: Profile recibido:',
+      profile,
+    );
+    const user = await this.authClient.validateOAuthUser(profile);
+    const tokens = await this.authClient.issueTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+    return { ...tokens, user: new User(user) };
+  }
 
-    async validateOAuthUser(profile: any): Promise<any> {
-        let user = await this.usersService.findByEmail(profile.email);
+  async refresh(refreshToken: string) {
+    return this.authClient.refresh(refreshToken);
+  }
 
-        if (!user) {
-            // Crear nuevo usuario desde OAuth
-            user = await this.usersService.create({
-                email: profile.email,
-                firstName: profile.firstName,
-                lastName: profile.lastName,
-                avatar: profile.avatar,
-                provider: profile.provider,
-                providerId: profile.providerId,
-                emailVerified: true,
-                role: UserRole.USER,
-            });
-        } else {
-            // Actualizar último login
-            await this.usersService.updateLastLogin(user.id);
-        }
-
-        return user;
-    }
+  async revoke(refreshToken: string) {
+    return this.authClient.revoke(refreshToken);
+  }
 }

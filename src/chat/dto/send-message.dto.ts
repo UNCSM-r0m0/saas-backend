@@ -27,12 +27,12 @@ export class SendMessageDto {
     anonymousId?: string;
 
     @ApiPropertyOptional({
-        example: 'ollama',
-        description: 'Modelo de IA a usar: ollama (local), gemini (Google), openai (OpenAI) o deepseek (DeepSeek)',
-        enum: ['ollama', 'gemini', 'openai', 'deepseek'],
+        example: 'ollama-qwen2.5-coder:7b',
+        description:
+            'Modelo de IA a usar. Acepta provedores (gemini|openai|deepseek) o modelos Ollama específicos como "ollama-<modelo>" o directamente "<modelo>" (p.ej. qwen2.5-coder:7b).',
     })
     @IsString()
     @IsOptional()
-    model?: 'ollama' | 'gemini' | 'openai' | 'deepseek';
+    model?: string;
 }
 

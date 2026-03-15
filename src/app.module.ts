@@ -14,6 +14,7 @@ import { StripeModule } from './stripe/stripe.module';
 import { GeminiModule } from './gemini/gemini.module';
 import { OpenAIModule } from './openai/openai.module';
 import { DeepSeekModule } from './deepseek/deepseek.module';
+import { ModelsModule } from './models/models.module';
 
 @Module({
   imports: [
@@ -27,6 +28,8 @@ import { DeepSeekModule } from './deepseek/deepseek.module';
         DATABASE_URL: Joi.string().required(),
         JWT_SECRET: Joi.string().required(),
         JWT_EXPIRATION: Joi.string().default('7d'),
+        JWT_ACCESS_EXPIRES: Joi.string().default('15m'),
+        JWT_REFRESH_EXPIRES: Joi.string().default('30d'),
         GOOGLE_CLIENT_ID: Joi.string().optional(),
         GOOGLE_CLIENT_SECRET: Joi.string().optional(),
         GOOGLE_CALLBACK_URL: Joi.string().optional(),
@@ -35,7 +38,12 @@ import { DeepSeekModule } from './deepseek/deepseek.module';
         GITHUB_CALLBACK_URL: Joi.string().optional(),
         FRONTEND_URL: Joi.string().default('http://localhost:3001'),
         OLLAMA_URL: Joi.string().default('http://localhost:11434'),
-        OLLAMA_MODEL: Joi.string().default('deepseek-r1:7b'),
+        OLLAMA_MODEL: Joi.string().default('qwen2.5-coder:7b'),
+        OLLAMA_PROXY_URL: Joi.string().optional(),
+        OLLAMA_PROXY_API_KEY: Joi.string().optional(),
+        NATS_URL: Joi.string().default('nats://localhost:4222'),
+        PUBLIC_MODELS: Joi.string().optional(),
+        PRO_MODELS: Joi.string().optional(),
         FREE_USER_MESSAGE_LIMIT: Joi.number().default(3),
         FREE_USER_MAX_TOKENS: Joi.number().default(512),
         REGISTERED_USER_MESSAGE_LIMIT: Joi.number().default(10),
@@ -49,9 +57,16 @@ import { DeepSeekModule } from './deepseek/deepseek.module';
         OPENAI_API_KEY: Joi.string().allow('').optional(),
         DEEPSEEK_API_KEY: Joi.string().allow('').optional(),
         MAX_FILE_SIZE_MB: Joi.number().default(10),
-        ALLOWED_FILE_TYPES: Joi.string().default('image/jpeg,image/png,image/gif,image/webp'),
+        ALLOWED_FILE_TYPES: Joi.string().default(
+          'image/jpeg,image/png,image/gif,image/webp',
+        ),
         ADMIN_EMAIL: Joi.string().default('admin@saas.com'),
         ADMIN_PASSWORD: Joi.string().default('Admin123!'),
+        // Chat concurrency controls (optional)
+        CHAT_MAX_CONCURRENCY: Joi.number().default(2),
+        CHAT_MAX_STREAMS_PER_USER: Joi.number().default(1),
+        CHAT_QUEUE_TIMEOUT_MS: Joi.number().default(8000),
+        CHAT_QUEUE_MAX_WAITERS: Joi.number().default(50),
       }),
     }),
     PrismaModule,
@@ -64,8 +79,9 @@ import { DeepSeekModule } from './deepseek/deepseek.module';
     GeminiModule,
     OpenAIModule,
     DeepSeekModule,
+    ModelsModule,
   ],
   controllers: [AppController],
   providers: [AppService, UsageService],
 })
-export class AppModule { }
+export class AppModule {}

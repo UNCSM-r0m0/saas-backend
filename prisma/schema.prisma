@@ -3,11 +3,13 @@
 
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public", "users", "chat", "billing", "usage"]
 }
 
 // Enums
@@ -15,18 +17,24 @@ enum UserRole {
   SUPER_ADMIN
   ADMIN
   USER
+
+  @@schema("users")
 }
 
 enum AuthProvider {
   LOCAL
   GOOGLE
   GITHUB
+
+  @@schema("users")
 }
 
 enum SubscriptionTier {
   FREE // Anónimos: 3 mensajes
   REGISTERED // Registrados: 50 mensajes/día
-  PREMIUM // Premium: 1000 mensajes/día + imágenes
+  PREMIUM // Premium: 100 mensajes/día + imágenes
+
+  @@schema("billing")
 }
 
 enum SubscriptionStatus {
@@ -34,16 +42,31 @@ enum SubscriptionStatus {
   CANCELED
   EXPIRED
   TRIALING
+
+  @@schema("billing")
 }
 
 enum MessageRole {
   USER
   ASSISTANT
   SYSTEM
+
+  @@schema("chat")
+}
+
+// Estado de mensajes (para streams y telemetría)
+enum MessageStatus {
+  DRAFT
+  STREAMING
+  DONE
+  ERROR
+
+  @@schema("chat")
 }
 
 // Models
 model User {
+  // Users domain lives in the "users" schema to reduce cross-service coupling.
   id            String       @id @default(uuid())
   email         String       @unique
   password      String? // Null para OAuth users
@@ -61,10 +84,11 @@ model User {
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   // Relations
-  subscription  Subscription?
-  conversations Conversation[]
-  messages      Message[]
-  usageRecords  UsageRecord[]
+  subscription Subscription?
+  chats        Chat[]        @relation("UserChats") // como owner opcional
+  messages     Message[]
+  usageRecords UsageRecord[]
+  refreshTokens RefreshToken[]
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -74,6 +98,21 @@ model User {
   @@index([email])
   @@index([tenantId])
   @@map("users")
+  @@schema("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+  @@schema("users")
 }
 
 model Tenant {
@@ -91,6 +130,7 @@ model Tenant {
 
   @@index([slug])
   @@map("tenants")
+  @@schema("users")
 }
 
 // Subscriptions (FREE, REGISTERED, PREMIUM)
@@ -114,39 +154,48 @@ model Subscription {
   @@index([userId])
   @@index([stripeCustomerId])
   @@map("subscriptions")
+  @@schema("billing")
 }
 
-// Conversaciones (solo para usuarios registrados)
-model Conversation {
-  id     String  @id @default(uuid())
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+// Nuevo modelo Chat para sesiones mejoradas
+model Chat {
+  id          String  @id @default(uuid())
+  title       String  @default("Nueva conversación")
+  isAnonymous Boolean @default(false)
 
-  title String @default("Nueva conversación")
+  // Owner opcional (para hilos anónimos también)
+  ownerId String?
+  owner   User?   @relation("UserChats", fields: [ownerId], references: [id])
 
-  // Relations
-  messages Message[]
-
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
+  // Relaciones
+  messages Message[]
+
+  @@index([ownerId])
   @@index([createdAt])
-  @@map("conversations")
+  @@map("chats")
+  @@schema("chat")
 }
 
 // Mensajes del chat
 model Message {
-  id             String       @id @default(uuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  userId         String?
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  role           MessageRole
-  content        String       @db.Text
-  model          String       @default("deepseek-r1:7b")
-  tokensUsed     Int          @default(0)
+  id     String @id @default(uuid())
+  chatId String
+  chat   Chat   @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  role       MessageRole
+  content    String      @db.Text
+  model      String      @default("deepseek-r1:7b")
+  tokensUsed Int         @default(0)
+
+  // Streaming / metadata
+  status    MessageStatus @default(DONE)
+  streamId  String?
+  meta      Json?
 
   // Attachments (solo premium)
   attachments String[] // URLs de archivos adjuntos
@@ -154,10 +203,11 @@ model Message {
   // Timestamps
   createdAt DateTime @default(now())
 
-  @@index([conversationId])
+  @@index([chatId])
   @@index([userId])
   @@index([createdAt])
   @@map("messages")
+  @@schema("chat")
 }
 
 // Tracking de uso (para rate limiting)
@@ -183,4 +233,37 @@ model UsageRecord {
   @@index([userId, date])
   @@index([anonymousId, date])
   @@map("usage_records")
+  @@schema("usage")
+}
+
+model UsageConsumedEvent {
+  id        String   @id @default(uuid())
+  eventId   String   @unique
+  eventType String
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@map("usage_consumed_events")
+  @@schema("usage")
+}
+
+model BillingUsageEvent {
+  id             String   @id @default(uuid())
+  eventId        String   @unique
+  source         String
+  eventType      String
+  userId         String?
+  anonymousId    String?
+  conversationId String?
+  messageId      String?
+  model          String?
+  tokensUsed     Int      @default(0)
+  occurredAt     DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([eventType, occurredAt])
+  @@index([userId, occurredAt])
+  @@index([conversationId, occurredAt])
+  @@map("billing_usage_events")
+  @@schema("billing")
 }

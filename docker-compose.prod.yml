@@ -1,0 +1,206 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: saas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-saas_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-saas_db}',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    container_name: saas-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: saas-nats
+    restart: unless-stopped
+    command: ['-js']
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8222/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: saas-backend:prod
+    container_name: saas-migrate
+    profiles: ['tools']
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/saas_db?schema=public}
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: saas-backend:prod
+    container_name: saas-gateway
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/saas_db?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    command: ['npm', 'run', 'start:prod:gateway']
+    ports:
+      - '3001:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    networks:
+      - backend
+
+  auth:
+    image: saas-backend:prod
+    container_name: saas-auth
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/saas_db?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    command: ['npm', 'run', 'start:prod:auth']
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  users:
+    image: saas-backend:prod
+    container_name: saas-users
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/saas_db?schema=public}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    command: ['npm', 'run', 'start:prod:users']
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  chat:
+    image: saas-backend:prod
+    container_name: saas-chat
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/saas_db?schema=public}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+      OLLAMA_PROXY_URL: ${OLLAMA_PROXY_URL}
+      OLLAMA_PROXY_API_KEY: ${OLLAMA_PROXY_API_KEY}
+      OLLAMA_FALLBACK_MODEL: ${OLLAMA_FALLBACK_MODEL:-gpt-oss:20b-cloud}
+      CHAT_STREAM_BATCH_MS: ${CHAT_STREAM_BATCH_MS:-120}
+      CHAT_STREAM_BATCH_TARGET_CHARS: ${CHAT_STREAM_BATCH_TARGET_CHARS:-220}
+      CHAT_STREAM_BATCH_MIN_CHARS: ${CHAT_STREAM_BATCH_MIN_CHARS:-32}
+    command: ['npm', 'run', 'start:prod:chat']
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  billing:
+    image: saas-backend:prod
+    container_name: saas-billing
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/saas_db?schema=public}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    command: ['npm', 'run', 'start:prod:billing']
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+  usage:
+    image: saas-backend:prod
+    container_name: saas-usage
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/saas_db?schema=public}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    command: ['npm', 'run', 'start:prod:usage']
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  backend:
+    driver: bridge

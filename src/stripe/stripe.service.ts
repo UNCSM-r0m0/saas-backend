@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
+import { WsEmitterService } from '../common/ws/ws-emitter.service';
 
 @Injectable()
 export class StripeService {
@@ -11,6 +12,7 @@ export class StripeService {
     constructor(
         private readonly configService: ConfigService,
         private readonly prisma: PrismaService,
+        private readonly wsEmitter: WsEmitterService,
     ) {
         const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
         if (!secretKey || secretKey === '') {
@@ -50,8 +52,9 @@ export class StripeService {
                     },
                 ],
                 mode: 'subscription',
-                success_url: `https://jeanett-uncolorable-pickily.ngrok-free.dev/api/success?session_id={CHECKOUT_SESSION_ID}`,
-                cancel_url: `${this.configService.get('FRONTEND_URL')}/cancel`,
+                // BrowserRouter paths (no hash) so the app route matches and can confirm immediately
+                success_url: `${this.configService.get('FRONTEND_URL')}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${this.configService.get('FRONTEND_URL')}/payment/cancel`,
                 metadata: {
                     userId: userId,
                 },
@@ -68,6 +71,35 @@ export class StripeService {
             this.logger.error(`Error creating checkout session: ${error.message}`);
             throw error;
         }
+    }
+
+    /**
+     * Confirmar una sesión de Checkout de Stripe inmediatamente tras el éxito.
+     * Evita depender del retraso del webhook.
+     */
+    async confirmCheckoutSession(sessionId: string, requestUserId: string) {
+        if (!this.stripe) {
+            throw new Error('Stripe not configured. Please set STRIPE_SECRET_KEY in environment variables.');
+        }
+
+        const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+        const metaUserId = session.metadata?.userId;
+        if (!metaUserId) {
+            throw new Error('Missing userId in session metadata');
+        }
+        if (metaUserId !== requestUserId) {
+            throw new Error('Session does not belong to current user');
+        }
+
+        if (!session.subscription) {
+            throw new Error('No subscription attached to session');
+        }
+
+        const subscription = await this.stripe.subscriptions.retrieve(session.subscription as string);
+        await this.createOrUpdateSubscription(metaUserId, subscription);
+        this.wsEmitter.emitToUser(metaUserId, 'subscriptionUpdated', await this.getUserSubscription(metaUserId));
+
+        return this.getUserSubscription(metaUserId);
     }
 
     /**
@@ -149,6 +181,7 @@ export class StripeService {
         );
 
         await this.createOrUpdateSubscription(userId, subscription);
+        this.wsEmitter.emitToUser(userId, 'subscriptionUpdated', await this.getUserSubscription(userId));
         this.logger.log(`Subscription created for user ${userId}`);
     }
 
@@ -163,6 +196,7 @@ export class StripeService {
         }
 
         await this.createOrUpdateSubscription(userId, subscription);
+        this.wsEmitter.emitToUser(userId, 'subscriptionUpdated', await this.getUserSubscription(userId));
         this.logger.log(`Subscription updated for user ${userId}`);
     }
 
@@ -183,6 +217,7 @@ export class StripeService {
                 stripeCurrentPeriodEnd: new Date(),
             },
         });
+        this.wsEmitter.emitToUser(userId, 'subscriptionUpdated', await this.getUserSubscription(userId));
 
         this.logger.log(`Subscription canceled for user ${userId}`);
     }

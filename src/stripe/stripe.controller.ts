@@ -6,7 +6,9 @@ import {
     Req,
     UseGuards,
     Headers,
+    Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import type { RawBodyRequest } from '@nestjs/common';
 import {
     ApiTags,
@@ -17,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { StripeService } from './stripe.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ClientTypeGuard } from '../common/guards/client-type.guard';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 
@@ -32,7 +35,7 @@ export class StripeController {
      * Crear sesión de checkout para suscripción premium
      */
     @Post('create-checkout-session')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Crear sesión de checkout para suscripción premium',
@@ -77,10 +80,31 @@ export class StripeController {
     }
 
     /**
+     * Confirmar sesión de checkout (post-redirect), acelera la actualización de la suscripción.
+     * Acepta tanto query param (session_id) como body { sessionId }.
+     */
+    @Post('confirm-session')
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
+    @ApiBearerAuth()
+    async confirmCheckout(
+        @Req() req: any,
+        @Body('sessionId') bodySessionId?: string,
+    ) {
+        const url = new URL(req?.headers?.referer || 'http://localhost');
+        const querySession = url.searchParams.get('session_id') || undefined;
+        const sessionId = bodySessionId || querySession;
+        if (!sessionId) {
+            throw new Error('sessionId is required');
+        }
+        const sub = await this.stripeService.confirmCheckoutSession(sessionId, req.user.id);
+        return sub;
+    }
+
+    /**
      * Crear sesión del portal de facturación
      */
     @Post('create-portal-session')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Crear sesión del portal de facturación',
@@ -109,7 +133,7 @@ export class StripeController {
      * Obtener información de suscripción del usuario
      */
     @Get('subscription')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(ClientTypeGuard, JwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Obtener información de suscripción',
@@ -130,8 +154,18 @@ export class StripeController {
             },
         },
     })
-    async getUserSubscription(@Req() req: any) {
-        return this.stripeService.getUserSubscription(req.user.id);
+    async getUserSubscription(@Req() req: any, @Res() res: Response, @Headers('if-none-match') ifNoneMatch?: string) {
+        const sub = await this.stripeService.getUserSubscription(req.user.id);
+        const etagBase = sub ? `${sub.tier}-${sub.status}-${(sub as any).updatedAt ?? ''}` : 'none';
+        const etag = 'W/"' + Buffer.from(etagBase).toString('base64') + '"';
+
+        if (ifNoneMatch && ifNoneMatch === etag) {
+            return res.status(304).end();
+        }
+
+        res.setHeader('Cache-Control', 'private, max-age=60');
+        res.setHeader('ETag', etag);
+        return res.status(200).json(sub);
     }
 
     /**

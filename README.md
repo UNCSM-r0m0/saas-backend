@@ -333,3 +333,27 @@ Ver logs en tiempo real:
 Actualizar código y reiniciar:
 Solo reconstruir:
 Probar endpoints:
+
+#####
+
+## ngrok http 3000 --domain=jeanett-uncolorable-pickily.ngrok-free.dev
+
+## ngrok config add-authtoken 33fRwxM1DsbGwFwgd7treLwkIQx_cPBMkL5CTxU8UhECMXkM
+
+## npm run dev -- --port 5173 --strictPort true
+
+## systemctl status ollama
+
+## ollama run deepseek-r1:7b
+
+## ollama serve
+
+## ollama run qwen2.5-coder:7b
+
+## npm run prisma:studio
+
+## dbeaver &
+
+## sudo service postgresql start
+
+## sudo service postgresql status

@@ -34,6 +34,10 @@ export class UsageService {
         const limits = this.subscriptionsService.getUserLimits(tier);
 
         // Buscar o crear registro de uso del día
+        if (!userId && !anonymousId) {
+            throw new ForbiddenException('Se requiere userId o anonymousId para registrar uso');
+        }
+
         const usageRecord = await this.prisma.usageRecord.upsert({
             where: userId
                 ? { userId_date: { userId, date: today } }
@@ -71,6 +75,10 @@ export class UsageService {
     ): Promise<void> {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
+        if (!userId && !anonymousId) {
+            throw new ForbiddenException('Se requiere userId o anonymousId para registrar uso');
+        }
 
         await this.prisma.usageRecord.upsert({
             where: userId
