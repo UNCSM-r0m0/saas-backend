@@ -33,7 +33,8 @@ interface AuthSocket extends Socket {
     credentials: true,
   },
   namespace: '/chat',
-  transports: ['websocket'],
+  // Permite fallback a polling cuando algún proxy/tunnel bloquea el upgrade WS.
+  transports: ['websocket', 'polling'],
   pingTimeout: 120000, // 2 minutos para modelos lentos
   pingInterval: 25000, // default ok
   perMessageDeflate: false, // MUY importante con proxys

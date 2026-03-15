@@ -32,6 +32,14 @@ import { MobileGoogleVerifyDto } from 'libs/contracts/auth';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  private clearLegacyAuthCookies(res: Response) {
+    const names = ['auth_token', 'auth_token_client', 'token'];
+    for (const name of names) {
+      res.clearCookie(name, { path: '/' });
+      res.clearCookie(name, { path: '/', domain: '.r0lm0.dev' });
+    }
+  }
+
   private setRefreshCookie(res: Response, refreshToken: string) {
     const refreshTtl = process.env.JWT_REFRESH_EXPIRES || '30d';
     const maxAge = this.parseDurationToMs(refreshTtl, 30 * 24 * 60 * 60 * 1000);
@@ -87,6 +95,7 @@ export class AuthController {
     const { access_token, refresh_token, user } =
       await this.authService.register(registerDto);
 
+    this.clearLegacyAuthCookies(res);
     this.setAccessCookie(res, access_token);
     this.setRefreshCookie(res, refresh_token);
 
@@ -118,6 +127,7 @@ export class AuthController {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const isLocalhostFrontend = frontendUrl.includes('localhost');
 
+    this.clearLegacyAuthCookies(res);
     this.setAccessCookie(res, access_token);
     this.setRefreshCookie(res, refresh_token);
     // Devolver también el token en el body para apps móviles
@@ -159,8 +169,8 @@ export class AuthController {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const isCrossSite = !frontendUrl.includes('localhost');
 
-    // Limpiar cookie antigua si existe
-    res.clearCookie('auth_token', { path: '/' });
+    // Limpiar cookies antiguas si existen
+    this.clearLegacyAuthCookies(res);
 
     // Configurar cookie para dominio compartido
     this.setAccessCookie(res, access_token);
@@ -190,8 +200,8 @@ export class AuthController {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const isCrossSite = !frontendUrl.includes('localhost');
 
-    // Limpiar cookie antigua si existe
-    res.clearCookie('auth_token', { path: '/' });
+    // Limpiar cookies antiguas si existen
+    this.clearLegacyAuthCookies(res);
 
     // Configurar cookie para dominio compartido
     this.setAccessCookie(res, access_token);
@@ -206,6 +216,7 @@ export class AuthController {
     if (refreshToken) {
       await this.authService.revoke(refreshToken);
     }
+    this.clearLegacyAuthCookies(res);
     res.clearCookie('access_token', {
       path: '/',
       domain: '.r0lm0.dev',
@@ -239,6 +250,7 @@ export class AuthController {
     const { access_token, refresh_token, user } =
       await this.authService.refresh(refreshToken);
 
+    this.clearLegacyAuthCookies(res);
     this.setAccessCookie(res, access_token);
     this.setRefreshCookie(res, refresh_token);
 
