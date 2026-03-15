@@ -144,6 +144,8 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/saas_db?schema=public}
       NATS_URL: ${NATS_URL:-nats://nats:4222}
+      # Para usar Ollama instalado en el host (no dentro del contenedor)
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_PROXY_URL: ${OLLAMA_PROXY_URL}
       OLLAMA_PROXY_API_KEY: ${OLLAMA_PROXY_API_KEY}
       OLLAMA_FALLBACK_MODEL: ${OLLAMA_FALLBACK_MODEL:-gpt-oss:20b-cloud}
@@ -158,6 +160,8 @@ services:
         condition: service_healthy
     networks:
       - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   billing:
     image: saas-backend:prod
