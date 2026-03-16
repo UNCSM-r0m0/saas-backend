@@ -10,6 +10,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     canActivate(context: ExecutionContext) {
+        const request = context.switchToHttp().getRequest();
+        
+        // Permitir peticiones OPTIONS (CORS preflight) sin autenticación
+        if (request.method === 'OPTIONS') {
+            return true;
+        }
+        
         // Verificar si el endpoint requiere autenticación
         const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
             context.getHandler(),

@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { SwaggerModule, DocumentBuilder, SwaggerCustomOptions } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import cookieParser from 'cookie-parser';
@@ -22,6 +22,22 @@ async function bootstrap() {
   // Cookies
   app.use(cookieParser());
 
+  // ==========================================
+  // HEALTH CHECK ENDPOINT (ANTES del prefijo global /api)
+  // ==========================================
+  const httpAdapter = app.getHttpAdapter();
+  
+  // Health check simple en /health (sin prefijo /api)
+  httpAdapter.get('/health', (req: any, res: any) => {
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      service: 'gateway',
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+    });
+  });
+  
   // Prefijo global /api
   app.setGlobalPrefix('api');
 
@@ -46,22 +62,8 @@ async function bootstrap() {
     }),
   );
 
-  // ==========================================
-  // HEALTH CHECK ENDPOINT
-  // ==========================================
-  const httpAdapter = app.getHttpAdapter();
-  httpAdapter.get('/health', (req: any, res: any) => {
-    res.status(200).json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      service: 'gateway',
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV || 'development',
-    });
-  });
-  
-  // Health check detallado con dependencias
-  httpAdapter.get('/health/detailed', async (req: any, res: any) => {
+  // Health check detallado con dependencias (con prefijo /api)
+  httpAdapter.get('/api/health/detailed', async (req: any, res: any) => {
     const health = {
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -98,7 +100,19 @@ async function bootstrap() {
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
+    
+    // Configuración personalizada para usar CDN (mejor compatibilidad con proxies)
+    const customOptions: SwaggerCustomOptions = {
+      customCssUrl: 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui.min.css',
+      customJs: [
+        'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-bundle.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.0/swagger-ui-standalone-preset.js',
+      ],
+      customfavIcon: 'https://swagger.io/favicon.ico',
+      customSiteTitle: 'SaaS Backend API Docs',
+    };
+    
+    SwaggerModule.setup('api/docs', app, document, customOptions);
   }
 
   // ==========================================
