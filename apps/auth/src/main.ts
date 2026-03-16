@@ -1,20 +1,11 @@
-import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { bootstrapMicroservice } from '../../common/bootstrap-microservice';
 import { AuthServiceModule } from './auth-service.module';
 
-async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AuthServiceModule,
-    {
-      transport: Transport.NATS,
-      options: {
-        servers: [process.env.NATS_URL || 'nats://localhost:4222'],
-      },
-    },
-  );
-
-  await app.listen();
-  console.log('✅ Auth service listening (NATS)');
-}
-
-bootstrap();
+bootstrapMicroservice({
+  serviceName: 'Auth',
+  module: AuthServiceModule,
+  healthCheckPort: 3001,
+}).catch((error) => {
+  console.error('Failed to start auth service:', error);
+  process.exit(1);
+});

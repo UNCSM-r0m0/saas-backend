@@ -1,20 +1,11 @@
-import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { bootstrapMicroservice } from '../../common/bootstrap-microservice';
 import { BillingServiceModule } from './billing-service.module';
 
-async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    BillingServiceModule,
-    {
-      transport: Transport.NATS,
-      options: {
-        servers: [process.env.NATS_URL || 'nats://localhost:4222'],
-      },
-    },
-  );
-
-  await app.listen();
-  console.log('✅ Billing service listening (NATS)');
-}
-
-bootstrap();
+bootstrapMicroservice({
+  serviceName: 'Billing',
+  module: BillingServiceModule,
+  healthCheckPort: 3004,
+}).catch((error) => {
+  console.error('Failed to start billing service:', error);
+  process.exit(1);
+});

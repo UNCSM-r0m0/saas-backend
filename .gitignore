@@ -39,8 +39,9 @@ lerna-debug.log*
 .env
 .env.development.local
 .env.test.local
-.env.production.local
+.env.production
 .env.local
+.env.simple
 
 # OAuth credentials (Google, GitHub, etc.)
 /google/
