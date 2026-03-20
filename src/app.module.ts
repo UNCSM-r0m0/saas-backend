@@ -16,6 +16,7 @@ import { OpenAIModule } from './openai/openai.module';
 import { DeepSeekModule } from './deepseek/deepseek.module';
 import { ModelsModule } from './models/models.module';
 import { UploadModule } from './upload/upload.module';
+import { PaypalModule } from './paypal/paypal.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { UploadModule } from './upload/upload.module';
     DeepSeekModule,
     ModelsModule,
     UploadModule,
+    PaypalModule,
   ],
   controllers: [AppController],
   providers: [AppService, UsageService],
