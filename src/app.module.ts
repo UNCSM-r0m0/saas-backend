@@ -15,6 +15,7 @@ import { GeminiModule } from './gemini/gemini.module';
 import { OpenAIModule } from './openai/openai.module';
 import { DeepSeekModule } from './deepseek/deepseek.module';
 import { ModelsModule } from './models/models.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -60,6 +61,10 @@ import { ModelsModule } from './models/models.module';
         ALLOWED_FILE_TYPES: Joi.string().default(
           'image/jpeg,image/png,image/gif,image/webp',
         ),
+        // Cloudflare Images
+        CF_ACCOUNT_ID: Joi.string().allow('').optional(),
+        CF_API_TOKEN: Joi.string().allow('').optional(),
+        CF_IMAGES_ACCOUNT_HASH: Joi.string().allow('').optional(),
         ADMIN_EMAIL: Joi.string().default('admin@saas.com'),
         ADMIN_PASSWORD: Joi.string().default('Admin123!'),
         // Chat concurrency controls (optional)
@@ -80,6 +85,7 @@ import { ModelsModule } from './models/models.module';
     OpenAIModule,
     DeepSeekModule,
     ModelsModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService, UsageService],
