@@ -43,26 +43,34 @@ export class AuthController {
   private setRefreshCookie(res: Response, refreshToken: string) {
     const refreshTtl = process.env.JWT_REFRESH_EXPIRES || '30d';
     const maxAge = this.parseDurationToMs(refreshTtl, 30 * 24 * 60 * 60 * 1000);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const frontendUrl = process.env.FRONTEND_URL || '';
+    const isLocalhost = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
+    
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isLocalhost ? 'lax' : 'none',
       path: '/api/auth/refresh',
       maxAge,
-      domain: '.r0lm0.dev',
+      ...(isLocalhost ? {} : { domain: '.r0lm0.dev' }),
     });
   }
 
   private setAccessCookie(res: Response, accessToken: string) {
     const accessTtl = process.env.JWT_ACCESS_EXPIRES || '15m';
     const maxAge = this.parseDurationToMs(accessTtl, 15 * 60 * 1000);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const frontendUrl = process.env.FRONTEND_URL || '';
+    const isLocalhost = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
+    
     res.cookie('access_token', accessToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isLocalhost ? 'lax' : 'none',
       path: '/',
       maxAge,
-      domain: '.r0lm0.dev',
+      ...(isLocalhost ? {} : { domain: '.r0lm0.dev' }),
     });
   }
 
