@@ -73,7 +73,7 @@ export class PaypalService {
       this.tokenExpiry = new Date(Date.now() + data.expires_in * 1000);
 
       this.logger.log('Access token de PayPal obtenido');
-      return this.accessToken;
+      return this.accessToken!;
     } catch (error) {
       this.logger.error('Error obteniendo access token:', error.message);
       throw new InternalServerErrorException('Error autenticando con PayPal');
