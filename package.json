@@ -33,7 +33,7 @@
     "start:prod:chat": "node dist/apps/chat/src/main.js",
     "start:prod:billing": "node dist/apps/billing/src/main.js",
     "start:prod:usage": "node dist/apps/usage/src/main.js",
-    "start:prod:paypal": "node dist/apps/paypal/src/main.js",
+    "start:prod:paypal": "node dist/apps/ms-paypal/src/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:contracts": "jest chat-contracts.spec.ts chat-contract-shapes.spec.ts chat-event-consumers.spec.ts nats-envelope.spec.ts",
