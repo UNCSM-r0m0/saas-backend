@@ -69,7 +69,7 @@ export class UploadService {
       const formData = new FormData();
       
       // Convertir Buffer a Blob
-      const blob = new Blob([file.buffer], { type: file.mimetype });
+      const blob = new Blob([new Uint8Array(file.buffer)], { type: file.mimetype });
       formData.append('file', blob, file.originalname);
       
       // Metadata opcional
