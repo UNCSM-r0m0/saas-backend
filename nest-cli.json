@@ -12,33 +12,33 @@
     },
     "auth": {
       "type": "application",
-      "root": "apps/auth",
+      "root": "apps/ms-auth",
       "entryFile": "main",
-      "sourceRoot": "apps/auth/src"
+      "sourceRoot": "apps/ms-auth/src"
     },
     "users": {
       "type": "application",
-      "root": "apps/users",
+      "root": "apps/ms-users",
       "entryFile": "main",
-      "sourceRoot": "apps/users/src"
+      "sourceRoot": "apps/ms-users/src"
     },
     "chat": {
       "type": "application",
-      "root": "apps/chat",
+      "root": "apps/ms-chat",
       "entryFile": "main",
-      "sourceRoot": "apps/chat/src"
+      "sourceRoot": "apps/ms-chat/src"
     },
     "billing": {
       "type": "application",
-      "root": "apps/billing",
+      "root": "apps/ms-billing",
       "entryFile": "main",
-      "sourceRoot": "apps/billing/src"
+      "sourceRoot": "apps/ms-billing/src"
     },
     "usage": {
       "type": "application",
-      "root": "apps/usage",
+      "root": "apps/ms-usage",
       "entryFile": "main",
-      "sourceRoot": "apps/usage/src"
+      "sourceRoot": "apps/ms-usage/src"
     }
   },
   "compilerOptions": {

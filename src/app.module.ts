@@ -8,15 +8,15 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
-import { OllamaModule } from './ollama/ollama.module';
+import { OllamaModule } from './integrations/ai/ollama/ollama.module';
 import { UsageService } from './usage/usage.service';
 import { StripeModule } from './stripe/stripe.module';
-import { GeminiModule } from './gemini/gemini.module';
-import { OpenAIModule } from './openai/openai.module';
-import { DeepSeekModule } from './deepseek/deepseek.module';
+import { GeminiModule } from './integrations/ai/gemini/gemini.module';
+import { OpenAIModule } from './integrations/ai/openai/openai.module';
+import { DeepSeekModule } from './integrations/ai/deepseek/deepseek.module';
 import { ModelsModule } from './models/models.module';
 import { UploadModule } from './upload/upload.module';
-import { PaypalModule } from './paypal/paypal.module';
+
 
 @Module({
   imports: [
@@ -66,6 +66,8 @@ import { PaypalModule } from './paypal/paypal.module';
         CF_ACCOUNT_ID: Joi.string().allow('').optional(),
         CF_API_TOKEN: Joi.string().allow('').optional(),
         CF_IMAGES_ACCOUNT_HASH: Joi.string().allow('').optional(),
+        LLM_STUDIO_BASE_URL: Joi.string().allow('').optional(),
+        LLM_STUDIO_MODEL: Joi.string().allow('').optional(),
         ADMIN_EMAIL: Joi.string().default('admin@saas.com'),
         ADMIN_PASSWORD: Joi.string().default('Admin123!'),
         // Chat concurrency controls (optional)
@@ -87,7 +89,6 @@ import { PaypalModule } from './paypal/paypal.module';
     DeepSeekModule,
     ModelsModule,
     UploadModule,
-    PaypalModule,
   ],
   controllers: [AppController],
   providers: [AppService, UsageService],

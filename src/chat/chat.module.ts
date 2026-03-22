@@ -7,7 +7,7 @@ import { ChatStreamEventsController } from './chat-stream-events.controller';
 import { ChatGateway } from './chat.gateway';
 import { ChatClient } from './chat.client';
 import { WsModule } from '../common/ws/ws.module';
-import { OpenAIModule } from '../openai/openai.module';
+import { OpenAIModule } from '../integrations/ai/openai/openai.module';
 import { AuthModule } from '../auth/auth.module';
 import { ChatGatewayAuthService } from './gateway/chat-gateway-auth.service';
 import { ChatGatewayRoomService } from './gateway/chat-gateway-room.service';

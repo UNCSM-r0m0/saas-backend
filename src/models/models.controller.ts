@@ -7,7 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../common/decorators/public.decorator';
-import { OllamaService } from '../ollama/ollama.service';
+import { OllamaService } from '../integrations/ai/ollama/ollama.service';
 
 @ApiTags('models')
 @Controller('models')

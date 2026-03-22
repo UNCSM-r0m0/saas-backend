@@ -33,7 +33,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   private clearLegacyAuthCookies(res: Response) {
-    const names = ['auth_token', 'auth_token_client', 'token'];
+    const names = ['auth_token', 'auth_token_client', 'token', 'access_token_client'];
     for (const name of names) {
       res.clearCookie(name, { path: '/' });
       res.clearCookie(name, { path: '/', domain: '.r0lm0.dev' });
@@ -44,16 +44,14 @@ export class AuthController {
     const refreshTtl = process.env.JWT_REFRESH_EXPIRES || '30d';
     const maxAge = this.parseDurationToMs(refreshTtl, 30 * 24 * 60 * 60 * 1000);
     const isProduction = process.env.NODE_ENV === 'production';
-    const frontendUrl = process.env.FRONTEND_URL || '';
-    const isLocalhost = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
     
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isLocalhost ? 'lax' : 'none',
+      secure: isProduction, // false en desarrollo (localhost HTTP)
+      sameSite: isProduction ? 'none' : 'lax', // 'lax' funciona con proxy de Vite (mismo origen)
       path: '/api/auth/refresh',
       maxAge,
-      ...(isLocalhost ? {} : { domain: '.r0lm0.dev' }),
+      ...(isProduction ? { domain: '.r0lm0.dev' } : {}),
     });
   }
 
@@ -61,16 +59,15 @@ export class AuthController {
     const accessTtl = process.env.JWT_ACCESS_EXPIRES || '15m';
     const maxAge = this.parseDurationToMs(accessTtl, 15 * 60 * 1000);
     const isProduction = process.env.NODE_ENV === 'production';
-    const frontendUrl = process.env.FRONTEND_URL || '';
-    const isLocalhost = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
     
+    // Cookie httpOnly - el frontend no puede leerla, el backend sí
     res.cookie('access_token', accessToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isLocalhost ? 'lax' : 'none',
+      secure: isProduction, // false en desarrollo (localhost HTTP)
+      sameSite: isProduction ? 'none' : 'lax', // 'lax' funciona con proxy de Vite (mismo origen)
       path: '/',
       maxAge,
-      ...(isLocalhost ? {} : { domain: '.r0lm0.dev' }),
+      ...(isProduction ? { domain: '.r0lm0.dev' } : {}),
     });
   }
 
@@ -169,20 +166,28 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Google OAuth callback' })
   async googleAuthRedirect(@Req() req: any, @Res() res: Response) {
+    console.log('[OAuth] Google callback received');
     const { access_token, refresh_token } =
       await this.authService.validateOAuthUser(req.user);
 
-    // Configuración de cookies dinámica según entorno (como el proyecto que funciona)
-    const isProduction = process.env.NODE_ENV === 'production';
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const isCrossSite = !frontendUrl.includes('localhost');
-
+    console.log('[OAuth] Tokens generated, setting cookies...');
     // Limpiar cookies antiguas si existen
     this.clearLegacyAuthCookies(res);
 
-    // Configurar cookie para dominio compartido
+    // Configurar cookies
     this.setAccessCookie(res, access_token);
     this.setRefreshCookie(res, refresh_token);
+    
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const isLocalhost = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
+    
+    console.log(`[OAuth] Redirecting to ${frontendUrl}/auth/callback`);
+    
+    // En localhost, pasar token en URL para que el frontend lo guarde (cookies no funcionan entre puertos)
+    if (isLocalhost) {
+      return res.redirect(`${frontendUrl}/auth/callback?token=${access_token}`);
+    }
+    
     return res.redirect(`${frontendUrl}/auth/callback`);
   }
 
@@ -203,17 +208,14 @@ export class AuthController {
     const { access_token, refresh_token } =
       await this.authService.validateOAuthUser(req.user);
 
-    // Configuración de cookies dinámica según entorno (como el proyecto que funciona)
-    const isProduction = process.env.NODE_ENV === 'production';
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const isCrossSite = !frontendUrl.includes('localhost');
-
     // Limpiar cookies antiguas si existen
     this.clearLegacyAuthCookies(res);
 
-    // Configurar cookie para dominio compartido
+    // Configurar cookies
     this.setAccessCookie(res, access_token);
     this.setRefreshCookie(res, refresh_token);
+    
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     return res.redirect(`${frontendUrl}/auth/callback`);
   }
 
@@ -229,9 +231,18 @@ export class AuthController {
       path: '/',
       domain: '.r0lm0.dev',
     });
+    res.clearCookie('access_token', {
+      path: '/',
+    });
+    res.clearCookie('access_token_client', {
+      path: '/',
+    });
     res.clearCookie('refresh_token', {
       path: '/api/auth/refresh',
       domain: '.r0lm0.dev',
+    });
+    res.clearCookie('refresh_token', {
+      path: '/api/auth/refresh',
     });
     return res.json({ success: true });
   }
