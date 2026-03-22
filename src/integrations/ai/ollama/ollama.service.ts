@@ -1,5 +1,6 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { CacheService } from '../../../common/cache/cache.service';
 
 export interface OllamaMessage {
   role: 'user' | 'assistant' | 'system';
@@ -49,7 +50,10 @@ export class OllamaService {
     return first || undefined;
   }
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private cacheService: CacheService,
+  ) {
     this.ollamaUrl = this.configService.get<string>(
       'OLLAMA_URL',
       'http://localhost:11434',
@@ -248,17 +252,43 @@ export class OllamaService {
 
   /**
    * Genera una respuesta del modelo de Ollama (sin streaming)
+   * Con soporte de caché para reducir costos y latencia
    */
   async generate(
     messages: OllamaMessage[],
     maxTokens?: number,
     model?: string,
   ): Promise<{ content: string; tokensUsed: number }> {
+    const normalizedMaxTokens = Number(maxTokens) || 2048;
+    const modelToUse = model || this.defaultModel;
+    
+    // Extraer el último mensaje del usuario como prompt para caché
+    const lastUserMessage = messages
+      .filter(m => m.role === 'user')
+      .pop()?.content || '';
+    const systemPrompt = messages.find(m => m.role === 'system')?.content;
+
+    // Verificar caché (solo si no es streaming y hay mensaje de usuario)
+    if (lastUserMessage) {
+      const cached = await this.cacheService.getAIResponse(
+        lastUserMessage,
+        modelToUse,
+        systemPrompt,
+      );
+      
+      if (cached) {
+        this.logger.log(`✅ Cache HIT para modelo ${modelToUse}`);
+        return {
+          content: cached.response,
+          tokensUsed: cached.tokensUsed,
+        };
+      }
+    }
+
     try {
-      const normalizedMaxTokens = Number(maxTokens) || 2048;
       if (this.useProxy && this.ollamaProxyUrl) {
         const payload = {
-          model: model || this.defaultModel,
+          model: modelToUse,
           messages,
           stream: false,
           temperature: 0.7,
@@ -267,7 +297,7 @@ export class OllamaService {
         };
 
         this.logger.log(
-          `Generando respuesta via proxy con modelo ${model || this.defaultModel} (max_tokens: ${maxTokens})`,
+          `Generando respuesta via proxy con modelo ${modelToUse} (max_tokens: ${maxTokens})`,
         );
 
         const response = await fetch(
@@ -301,6 +331,17 @@ export class OllamaService {
 
         const cleanedContent = this.stripThinkTags(responseText);
 
+        // Guardar en caché
+        if (lastUserMessage) {
+          await this.cacheService.setAIResponse(
+            lastUserMessage,
+            modelToUse,
+            cleanedContent,
+            tokensUsed,
+            systemPrompt,
+          );
+        }
+
         return {
           content: cleanedContent,
           tokensUsed,
@@ -308,7 +349,7 @@ export class OllamaService {
       }
 
       const payload: OllamaGenerateRequest = {
-        model: model || this.defaultModel,
+        model: modelToUse,
         messages,
         stream: false,
         options: {
@@ -319,7 +360,7 @@ export class OllamaService {
       };
 
       this.logger.log(
-        `Generando respuesta con modelo ${model || this.defaultModel} (max_tokens: ${maxTokens})`,
+        `Generando respuesta con modelo ${modelToUse} (max_tokens: ${maxTokens})`,
       );
 
       const response = await fetch(`${this.ollamaUrl}/api/chat`, {
@@ -344,6 +385,17 @@ export class OllamaService {
       // Limpiar contenido removiendo <think>...</think>
       const rawContent = data.message.content;
       const cleanedContent = this.stripThinkTags(rawContent);
+
+      // Guardar en caché
+      if (lastUserMessage) {
+        await this.cacheService.setAIResponse(
+          lastUserMessage,
+          modelToUse,
+          cleanedContent,
+          tokensUsed,
+          systemPrompt,
+        );
+      }
 
       return {
         content: cleanedContent,

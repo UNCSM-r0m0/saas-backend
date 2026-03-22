@@ -24,6 +24,7 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { GithubAuthGuard } from './guards/github-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { ThrottleAuth } from '../common/throttler/throttler.decorators';
 import type { Response } from 'express';
 import { MobileGoogleVerifyDto } from 'libs/contracts/auth';
 
@@ -44,14 +45,21 @@ export class AuthController {
     const refreshTtl = process.env.JWT_REFRESH_EXPIRES || '30d';
     const maxAge = this.parseDurationToMs(refreshTtl, 30 * 24 * 60 * 60 * 1000);
     const isProduction = process.env.NODE_ENV === 'production';
+    const frontendUrl = process.env.FRONTEND_URL || '';
+    const isHttps = frontendUrl.startsWith('https://');
+    
+    // Detectar si estamos usando dominios personalizados (tunnel)
+    const isCustomDomain = frontendUrl.includes('r0lm0.dev') || 
+                           frontendUrl.includes('vercel.app') ||
+                           frontendUrl.includes('ngrok');
     
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: isProduction, // false en desarrollo (localhost HTTP)
-      sameSite: isProduction ? 'none' : 'lax', // 'lax' funciona con proxy de Vite (mismo origen)
+      secure: isHttps, // true si el frontend usa HTTPS
+      sameSite: isHttps ? 'none' : 'lax', // 'none' requiere HTTPS + secure=true
       path: '/api/auth/refresh',
       maxAge,
-      ...(isProduction ? { domain: '.r0lm0.dev' } : {}),
+      ...(isCustomDomain ? { domain: '.r0lm0.dev' } : {}),
     });
   }
 
@@ -59,15 +67,22 @@ export class AuthController {
     const accessTtl = process.env.JWT_ACCESS_EXPIRES || '15m';
     const maxAge = this.parseDurationToMs(accessTtl, 15 * 60 * 1000);
     const isProduction = process.env.NODE_ENV === 'production';
+    const frontendUrl = process.env.FRONTEND_URL || '';
+    const isHttps = frontendUrl.startsWith('https://');
+    
+    // Detectar si estamos usando dominios personalizados (tunnel)
+    const isCustomDomain = frontendUrl.includes('r0lm0.dev') || 
+                           frontendUrl.includes('vercel.app') ||
+                           frontendUrl.includes('ngrok');
     
     // Cookie httpOnly - el frontend no puede leerla, el backend sí
     res.cookie('access_token', accessToken, {
       httpOnly: true,
-      secure: isProduction, // false en desarrollo (localhost HTTP)
-      sameSite: isProduction ? 'none' : 'lax', // 'lax' funciona con proxy de Vite (mismo origen)
+      secure: isHttps, // true si el frontend usa HTTPS
+      sameSite: isHttps ? 'none' : 'lax', // 'none' para cross-origin HTTPS
       path: '/',
       maxAge,
-      ...(isProduction ? { domain: '.r0lm0.dev' } : {}),
+      ...(isCustomDomain ? { domain: '.r0lm0.dev' } : {}),
     });
   }
 
@@ -179,15 +194,18 @@ export class AuthController {
     this.setRefreshCookie(res, refresh_token);
     
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const isLocalhost = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
+    const isLocalhostHttp = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
     
     console.log(`[OAuth] Redirecting to ${frontendUrl}/auth/callback`);
     
-    // En localhost, pasar token en URL para que el frontend lo guarde (cookies no funcionan entre puertos)
-    if (isLocalhost) {
+    // Solo pasar token por URL en desarrollo HTTP local (cookies no funcionan entre puertos HTTP)
+    // Con HTTPS (tunnel/cloudflare) las cookies funcionan correctamente cross-origin
+    if (isLocalhostHttp && !frontendUrl.startsWith('https://')) {
+      console.log('[OAuth] Usando modo localhost HTTP - token en URL');
       return res.redirect(`${frontendUrl}/auth/callback?token=${access_token}`);
     }
     
+    console.log('[OAuth] Usando cookies HTTP-only');
     return res.redirect(`${frontendUrl}/auth/callback`);
   }
 
@@ -216,6 +234,13 @@ export class AuthController {
     this.setRefreshCookie(res, refresh_token);
     
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const isLocalhostHttp = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
+    
+    // Solo pasar token por URL en desarrollo HTTP local
+    if (isLocalhostHttp && !frontendUrl.startsWith('https://')) {
+      return res.redirect(`${frontendUrl}/auth/callback?token=${access_token}`);
+    }
+    
     return res.redirect(`${frontendUrl}/auth/callback`);
   }
 

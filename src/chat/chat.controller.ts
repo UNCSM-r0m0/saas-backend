@@ -10,6 +10,7 @@ import {
   getUserIdFromReq,
 } from '../common/utils/auth.util';
 import { getCorrelationIdFromReq } from '../common/utils/correlation-id.util';
+import { ThrottleAI } from '../common/throttler/throttler.decorators';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -37,6 +38,7 @@ export class ChatController {
 
   @Post('message/stream')
   @Public()
+  @ThrottleAI()
   @ApiOperation({ summary: 'Enviar mensaje con streaming (SSE)' })
   @ApiResponse({ status: 200, description: 'Stream iniciado' })
   @ApiBody({ type: SendMessageDto })

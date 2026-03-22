@@ -16,6 +16,8 @@ import { OpenAIModule } from './integrations/ai/openai/openai.module';
 import { DeepSeekModule } from './integrations/ai/deepseek/deepseek.module';
 import { ModelsModule } from './models/models.module';
 import { UploadModule } from './upload/upload.module';
+import { ThrottlerConfigModule } from './common/throttler/throttler.module';
+import { CacheConfigModule } from './common/cache/cache.module';
 
 
 @Module({
@@ -75,6 +77,20 @@ import { UploadModule } from './upload/upload.module';
         CHAT_MAX_STREAMS_PER_USER: Joi.number().default(1),
         CHAT_QUEUE_TIMEOUT_MS: Joi.number().default(8000),
         CHAT_QUEUE_MAX_WAITERS: Joi.number().default(50),
+        // Redis
+        REDIS_URL: Joi.string().default('redis://localhost:6379'),
+        // Cache
+        CACHE_ENABLED: Joi.boolean().default(true),
+        CACHE_DEFAULT_TTL: Joi.number().default(3600),
+        // Rate limiting
+        THROTTLE_DEFAULT_TTL: Joi.number().default(60000),
+        THROTTLE_DEFAULT_LIMIT: Joi.number().default(100),
+        THROTTLE_AUTH_TTL: Joi.number().default(60000),
+        THROTTLE_AUTH_LIMIT: Joi.number().default(10),
+        THROTTLE_AI_TTL: Joi.number().default(60000),
+        THROTTLE_AI_LIMIT: Joi.number().default(20),
+        THROTTLE_UPLOAD_TTL: Joi.number().default(60000),
+        THROTTLE_UPLOAD_LIMIT: Joi.number().default(10),
       }),
     }),
     PrismaModule,
@@ -89,6 +105,8 @@ import { UploadModule } from './upload/upload.module';
     DeepSeekModule,
     ModelsModule,
     UploadModule,
+    ThrottlerConfigModule,
+    CacheConfigModule,
   ],
   controllers: [AppController],
   providers: [AppService, UsageService],

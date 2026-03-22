@@ -71,6 +71,7 @@ export const corsOptions: CorsOptions = {
         /https?:\/\/([a-z0-9-]+\.)*trycloudflare\.com$/i,
         /https?:\/\/([a-z0-9-]+\.)*ngrok-free\.(dev|app)$/i,
         /https?:\/\/([a-z0-9-]+\.)*ngrok\.app$/i,
+        /https?:\/\/([a-z0-9-]+\.)*r0lm0\.dev$/i,  // Cloudflare Tunnel personal
       );
     }
 

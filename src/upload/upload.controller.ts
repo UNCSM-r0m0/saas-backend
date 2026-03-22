@@ -19,6 +19,7 @@ import { UploadImageResponseDto } from './dto/upload-image.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ThrottleUpload } from '../common/throttler/throttler.decorators';
 
 @Controller('upload')
 export class UploadController {
@@ -30,6 +31,7 @@ export class UploadController {
    */
   @Post('image')
   @UseGuards(JwtAuthGuard)
+  @ThrottleUpload()
   @UseInterceptors(FileInterceptor('file'))
   async uploadImage(
     @UploadedFile(

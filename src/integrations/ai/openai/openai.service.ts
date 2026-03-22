@@ -1,7 +1,7 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { LocalModelQueueService } from '../../common/services/local-model-queue.service';
+import { LocalModelQueueService } from '../../../common/services/local-model-queue.service';
 
 @Injectable()
 export class OpenAIService {

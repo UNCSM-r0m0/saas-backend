@@ -7,6 +7,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import cookieParser from 'cookie-parser';
 import { cookieAuthMiddleware } from './common/middleware/cookie-auth.middleware';
 import { corsOptions } from './common/config/cors.config';
+import helmet from 'helmet';
 
 const logger = new Logger('Bootstrap');
 
@@ -18,6 +19,36 @@ async function bootstrap() {
 
   // Trust proxy para Cloudflare Tunnel / Nginx / Traefik
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
+  // Helmet - Headers de seguridad
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
+        scriptSrc: ["'self'", 'https://cdnjs.cloudflare.com'],
+        imgSrc: ["'self'", 'data:', 'https:', 'https://imagedelivery.net'],
+        connectSrc: ["'self'", 'wss:', 'ws:', 'https:'],
+        fontSrc: ["'self'", 'https://cdnjs.cloudflare.com'],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Necesario para algunos recursos CDN
+    hsts: {
+      maxAge: 31536000, // 1 año
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: {
+      policy: 'strict-origin-when-cross-origin',
+    },
+    hidePoweredBy: true,
+    xssFilter: true,
+    noSniff: true,
+    ieNoOpen: true,
+    frameguard: {
+      action: 'sameorigin',
+    },
+  }));
 
   // Cookies
   app.use(cookieParser());

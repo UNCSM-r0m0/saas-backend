@@ -551,23 +551,29 @@ export class ChatDomainService {
     return chat;
   }
 
-  async getChatHistory(chatId: string) {
+  async getChatHistory(chatId: string, limit: number = 20) {
     try {
+      // Obtener los últimos N mensajes (más recientes) para mantener contexto relevante
+      // sin exceder los límites de tokens del modelo
       const messages = await this.prisma.message.findMany({
         where: { chatId },
-        orderBy: { createdAt: 'asc' },
-        take: 20,
+        orderBy: { createdAt: 'desc' }, // Más recientes primero
+        take: limit,
         select: {
           role: true,
           content: true,
+          createdAt: true,
         },
       });
 
-      return messages.map((msg) => ({
+      // Invertir para que queden en orden cronológico (ascendente)
+      // ya que los modelos esperan el historial en orden
+      return messages.reverse().map((msg) => ({
         role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
         content: msg.content,
       }));
-    } catch {
+    } catch (error) {
+      this.logger.error(`Error obteniendo historial para chat ${chatId}:`, error);
       return [];
     }
   }

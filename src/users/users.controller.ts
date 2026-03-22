@@ -108,4 +108,31 @@ export class UsersController {
   remove(@Param('id') id: string, @Req() _req: any): Promise<User> {
     return this.usersClient.remove(id).then((user) => new User(user));
   }
+
+  // ==========================================================================
+  // 🔐 E2EE - End-to-End Encryption
+  // ==========================================================================
+
+  @Post('public-key')
+  @UseGuards(ClientTypeGuard, JwtAuthGuard)
+  @ApiOperation({ summary: 'Registrar clave pública para E2EE' })
+  @ApiResponse({ status: 200, description: 'Clave pública registrada' })
+  async registerPublicKey(
+    @Req() req: any,
+    @Body('publicKey') publicKey: string,
+  ): Promise<{ success: boolean }> {
+    const userId = req.user?.id;
+    await this.usersClient.update(userId, { publicKey } as any);
+    return { success: true };
+  }
+
+  @Get(':id/public-key')
+  @UseGuards(ClientTypeGuard, JwtAuthGuard)
+  @ApiOperation({ summary: 'Obtener clave pública de un usuario' })
+  @ApiResponse({ status: 200, description: 'Clave pública obtenida' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  async getPublicKey(@Param('id') id: string): Promise<{ publicKey: string | null }> {
+    const user = await this.usersClient.findOne(id);
+    return { publicKey: (user as any)?.publicKey || null };
+  }
 }
