@@ -189,7 +189,8 @@ export class OllamaProvider extends BaseAIProvider {
     messages: AIMessage[],
     config: AIProviderConfig
   ): Promise<AIResponse> {
-    const model = config.model || this.defaultModel;
+    const rawModel = config.model || this.defaultModel;
+    const model = this.stripModelPrefix(rawModel);
     const normalizedMaxTokens = config.maxTokens ?? 2048;
 
     // Ensure system prompt is injected if provided
@@ -329,7 +330,8 @@ export class OllamaProvider extends BaseAIProvider {
     messages: AIMessage[],
     config: AIProviderConfig
   ): AsyncIterable<AIStreamChunk> {
-    const model = config.model || this.defaultModel;
+    const rawModel = config.model || this.defaultModel;
+    const model = this.stripModelPrefix(rawModel);
     const normalizedMaxTokens = config.maxTokens ?? 2048;
 
     // Ensure system prompt is injected if provided
@@ -609,13 +611,26 @@ export class OllamaProvider extends BaseAIProvider {
   }
 
   /**
+   * Strip the provider prefix from model name if present.
+   * The registry passes model names like 'ollama-kimi-k2:1t-cloud',
+   * but the API expects just 'kimi-k2:1t-cloud'.
+   */
+  private stripModelPrefix(model: string): string {
+    const prefix = `${this.name}-`;
+    if (model.startsWith(prefix)) {
+      return model.slice(prefix.length);
+    }
+    return model;
+  }
+
+  /**
    * Strip <think>...</think> tags from content.
    * Used for reasoning models that output thinking process.
-   * 
+   *
    * @param content - Raw content from model
    * @returns Content with think tags removed
    */
   private stripThinkTags(content: string): string {
-    return content.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim();
+    return content.replace(/[\s\S]*?<\/think>\s*/g, '').trim();
   }
 }
