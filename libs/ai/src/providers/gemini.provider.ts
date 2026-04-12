@@ -70,6 +70,7 @@ export class GeminiProvider extends BaseAIProvider {
 
   /**
    * Generate a streaming response from Gemini
+   * Note: Retry logic is handled at a higher level; streaming doesn't support automatic retry.
    */
   async *generateStream(
     messages: AIMessage[],
@@ -79,10 +80,8 @@ export class GeminiProvider extends BaseAIProvider {
       throw new Error('Gemini not configured. Please set GEMINI_API_KEY in environment variables.');
     }
 
-    yield* this.withRetry(
-      () => this.doGenerateStream(messages, config),
-      'Gemini generateStream'
-    );
+    // Direct streaming without retry wrapper (streaming retry is complex)
+    yield* this.doGenerateStream(messages, config);
   }
 
   /**

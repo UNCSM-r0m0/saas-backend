@@ -30,8 +30,8 @@ export class ChatController {
       'Retorna información del modelo configurado y estadísticas de la cola de concurrencia',
   })
   async getOpenAIModelInfo() {
-    // Get OpenAI provider from registry
-    const openaiProvider = this.aiRegistry.getProviderForModel('gpt-4o-mini');
+    // Get OpenAI provider from registry by name
+    const openaiProvider = this.aiRegistry.getProviderByName('openai');
     
     if (!openaiProvider) {
       return {
