@@ -6,7 +6,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AIProviderRegistry, AIModelInfo } from '@libs/ai';
+import { AIProviderRegistry, AIModelInfo } from 'libs/ai';
 
 @ApiTags('models')
 @Controller('models')

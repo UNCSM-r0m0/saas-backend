@@ -4,7 +4,7 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatClient } from './chat.client';
-import { AIProviderRegistry } from '@libs/ai';
+import { AIProviderRegistry } from 'libs/ai';
 import {
   getUserIdFromAuthHeader,
   getUserIdFromReq,

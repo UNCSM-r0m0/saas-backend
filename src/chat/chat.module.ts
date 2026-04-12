@@ -8,6 +8,7 @@ import { ChatGateway } from './chat.gateway';
 import { ChatClient } from './chat.client';
 import { WsModule } from '../common/ws/ws.module';
 import { AuthModule } from '../auth/auth.module';
+import { AIModule } from 'libs/ai';
 import { ChatGatewayAuthService } from './gateway/chat-gateway-auth.service';
 import { ChatGatewayRoomService } from './gateway/chat-gateway-room.service';
 import { ChatStreamSessionService } from './gateway/chat-stream-session.service';
@@ -25,6 +26,7 @@ import { ChatStreamSessionService } from './gateway/chat-stream-session.service'
     ]),
     AuthModule,
     WsModule,
+    AIModule.forRoot(),
   ],
   providers: [
     ChatGateway,

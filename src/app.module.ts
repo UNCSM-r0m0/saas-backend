@@ -14,7 +14,7 @@ import { ModelsModule } from './models/models.module';
 import { UploadModule } from './upload/upload.module';
 import { ThrottlerConfigModule } from './common/throttler/throttler.module';
 import { CacheConfigModule } from './common/cache/cache.module';
-import { AIModule } from '@libs/ai';
+import { AIModule } from 'libs/ai';
 
 
 @Module({
