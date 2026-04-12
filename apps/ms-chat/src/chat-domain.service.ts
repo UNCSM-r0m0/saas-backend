@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import { MessageRole, SubscriptionTier } from '@prisma/client';
 import {
-  DeepSeekService,
-  GeminiService,
-  OllamaService,
-  OpenAIService,
+  AIProviderRegistry,
+  AIMessage,
+  AIMessageRole,
+  AIProviderConfig,
 } from 'libs/ai';
 import { SubscriptionsService } from 'libs/domain/subscriptions';
 import { UsageService } from 'libs/domain/usage';
@@ -23,10 +23,7 @@ export class ChatDomainService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ollamaService: OllamaService,
-    private readonly geminiService: GeminiService,
-    private readonly openaiService: OpenAIService,
-    private readonly deepseekService: DeepSeekService,
+    private readonly registry: AIProviderRegistry,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly usageService: UsageService,
   ) {}
@@ -103,86 +100,48 @@ export class ChatDomainService {
       );
     }
 
-    let aiResponse = '';
-    let tokensUsed = 0;
-    let modelUsed = '';
+    // Build messages array from history and current message
+    const messages = this.buildMessages(dto.content, history);
 
-    if (selectedModel === 'gemini') {
-      const geminiResponse = await this.geminiService.generateResponse(
-        dto.content,
-        {
-          maxTokens: limits.maxTokensPerMessage,
-          temperature: 0.7,
-          systemPrompt: 'Eres un asistente de IA útil y amigable.',
-        },
-      );
-      aiResponse = geminiResponse.response;
-      tokensUsed = geminiResponse.tokensUsed;
-      modelUsed = geminiResponse.model;
-    } else if (selectedModel === 'openai') {
-      const openaiResponse = await this.openaiService.generateResponse(
-        dto.content,
-        {
-          maxTokens: limits.maxTokensPerMessage,
-          temperature: 0.7,
-          systemPrompt: 'Eres un asistente de IA útil y amigable.',
-        },
-      );
-      aiResponse = openaiResponse.response;
-      tokensUsed = openaiResponse.tokensUsed;
-      modelUsed = openaiResponse.model;
-    } else if (selectedModel === 'deepseek') {
-      const deepseekResponse = await this.deepseekService.generateResponse(
-        dto.content,
-        {
-          maxTokens: limits.maxTokensPerMessage,
-          temperature: 0.7,
-          systemPrompt: 'Eres un asistente de IA útil y amigable.',
-          model: 'deepseek-chat',
-        },
-      );
-      aiResponse = deepseekResponse.response;
-      tokensUsed = deepseekResponse.tokensUsed;
-      modelUsed = deepseekResponse.model;
-    } else {
-      const ollamaMessages = [
-        ...history.map((m) => ({
-          role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content,
-        })),
-        { role: 'user' as const, content: dto.content },
-      ];
+    // Get provider from registry
+    const provider = this.registry.getProvider(selectedModel);
 
-      let ollamaModel: string | undefined = selectedModel;
-      if (selectedModel.startsWith('ollama-')) {
-        ollamaModel = selectedModel.replace('ollama-', '');
-      } else if (selectedModel === 'ollama') {
-        ollamaModel = undefined;
-      }
+    // Build provider config
+    const config: AIProviderConfig = {
+      model: selectedModel,
+      maxTokens: limits.maxTokensPerMessage,
+      temperature: 0.7,
+      systemPrompt: 'Eres un asistente de IA útil y amigable.',
+    };
 
-      try {
-        const ollamaResponse = await this.ollamaService.generate(
-          ollamaMessages,
-          limits.maxTokensPerMessage,
-          ollamaModel,
+    // Generate response using the unified provider interface
+    let aiResponse: string;
+    let tokensUsed: number;
+    let modelUsed: string;
+
+    try {
+      const response = await provider.generate(messages, config);
+      aiResponse = response.content;
+      tokensUsed = response.tokensUsed;
+      modelUsed = response.model;
+    } catch (error: any) {
+      // Handle Ollama memory errors with fallback
+      const fallbackModel = this.resolveOllamaFallbackModel(selectedModel);
+      if (fallbackModel && this.isModelMemoryError(error)) {
+        this.logger.warn(
+          `Model ${selectedModel} failed with memory error, trying fallback: ${fallbackModel}`,
         );
-        aiResponse = ollamaResponse.content;
-        tokensUsed = ollamaResponse.tokensUsed;
-        modelUsed = ollamaModel || 'ollama-default';
-      } catch (error: any) {
-        const fallbackModel = this.resolveOllamaFallbackModel(ollamaModel);
-        if (!fallbackModel || !this.isModelMemoryError(error)) {
-          throw error;
-        }
-
-        const fallbackResponse = await this.ollamaService.generate(
-          ollamaMessages,
-          limits.maxTokensPerMessage,
-          fallbackModel,
+        const fallbackProvider = this.registry.getProvider(fallbackModel);
+        const fallbackConfig = { ...config, model: fallbackModel };
+        const fallbackResponse = await fallbackProvider.generate(
+          messages,
+          fallbackConfig,
         );
         aiResponse = fallbackResponse.content;
         tokensUsed = fallbackResponse.tokensUsed;
-        modelUsed = fallbackModel;
+        modelUsed = fallbackResponse.model;
+      } else {
+        throw error;
       }
     }
 
@@ -298,128 +257,55 @@ export class ChatDomainService {
       );
     }
 
+    // Build messages array from history and current message
+    const messages = this.buildMessages(dto.content, history);
+
+    // Get provider from registry
+    const provider = this.registry.getProvider(selectedModel);
+
+    // Build provider config
+    const config: AIProviderConfig = {
+      model: selectedModel,
+      maxTokens: limits.maxTokensPerMessage,
+      temperature: 0.7,
+      systemPrompt: 'Eres un asistente de IA útil y amigable.',
+    };
+
     let fullContent = '';
     let modelUsed = selectedModel;
 
-    if (selectedModel === 'gemini') {
-      const stream = await this.geminiService.generateStreamingResponse(
-        dto.content,
-        {
-          maxTokens: limits.maxTokensPerMessage,
-          temperature: 0.7,
-          systemPrompt: 'Eres un asistente de IA útil y amigable.',
-        },
-      );
+    // Handle streaming based on provider capabilities
+    try {
+      const stream = provider.generateStream(messages, config);
+
       for await (const chunk of stream) {
-        if (!chunk) continue;
-        fullContent += chunk;
-        onChunk(chunk);
+        if (!chunk || !chunk.content) continue;
+        fullContent += chunk.content;
+        onChunk(chunk.content);
+        if (chunk.model) {
+          modelUsed = chunk.model;
+        }
       }
-      modelUsed = 'gemini-2.0-flash-exp';
-    } else if (selectedModel === 'openai') {
-      const stream = await this.openaiService.generateStreamingResponse(
-        dto.content,
-        {
-          maxTokens: limits.maxTokensPerMessage,
-          temperature: 0.7,
-          systemPrompt: 'Eres un asistente de IA útil y amigable.',
-        },
-      );
-      for await (const chunk of stream) {
-        if (!chunk) continue;
-        fullContent += chunk;
-        onChunk(chunk);
-      }
-      modelUsed = 'openai';
-    } else if (selectedModel === 'deepseek') {
-      const result = await this.deepseekService.generateResponse(dto.content, {
-        maxTokens: limits.maxTokensPerMessage,
-        temperature: 0.7,
-        systemPrompt: 'Eres un asistente de IA útil y amigable.',
-        model: 'deepseek-chat',
-      });
-      fullContent = result.response;
-      if (fullContent) onChunk(fullContent);
-      modelUsed = result.model;
-    } else {
-      const ollamaMessages = [
-        ...history.map((m) => ({
-          role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content,
-        })),
-        { role: 'user' as const, content: dto.content },
-      ];
-
-      let ollamaModel: string | undefined = selectedModel;
-      if (selectedModel.startsWith('ollama-')) {
-        ollamaModel = selectedModel.replace('ollama-', '');
-      } else if (selectedModel === 'ollama') {
-        ollamaModel = undefined;
-      }
-
-      const makeR1Processor = () => {
-        let inThink = false;
-        return (chunk: string) => {
-          let i = 0;
-          let resp = '';
-          const startTag = '<think>';
-          const endTag = '</think>';
-          while (i < chunk.length) {
-            if (!inThink) {
-              const j = chunk.indexOf(startTag, i);
-              if (j === -1) {
-                resp += chunk.slice(i);
-                break;
-              }
-              resp += chunk.slice(i, j);
-              i = j + startTag.length;
-              inThink = true;
-            } else {
-              const k = chunk.indexOf(endTag, i);
-              if (k === -1) {
-                break;
-              }
-              i = k + endTag.length;
-              inThink = false;
-            }
-          }
-          return resp;
-        };
-      };
-
-      const processR1 = makeR1Processor();
-
-      try {
-        const stream = this.ollamaService.generateStream(
-          ollamaMessages,
-          ollamaModel,
-          limits.maxTokensPerMessage,
+    } catch (error: any) {
+      // Handle Ollama memory errors with fallback
+      const fallbackModel = this.resolveOllamaFallbackModel(selectedModel);
+      if (fallbackModel && this.isModelMemoryError(error)) {
+        this.logger.warn(
+          `Model ${selectedModel} failed with memory error in streaming, trying fallback: ${fallbackModel}`,
         );
-        for await (const part of stream) {
-          const piece = typeof part === 'string' ? part : (part?.content ?? '');
-          if (!piece) continue;
-          const cleaned = processR1(piece);
-          if (!cleaned) continue;
-          fullContent += cleaned;
-          onChunk(cleaned);
-        }
-      } catch (error: any) {
-        const fallbackModel = this.resolveOllamaFallbackModel(ollamaModel);
-        if (!fallbackModel || !this.isModelMemoryError(error)) {
-          throw error;
-        }
-        const fallbackResponse = await this.ollamaService.generate(
-          ollamaMessages,
-          limits.maxTokensPerMessage,
-          fallbackModel,
+        const fallbackProvider = this.registry.getProvider(fallbackModel);
+        const fallbackConfig = { ...config, model: fallbackModel };
+
+        // Fall back to non-streaming for simplicity
+        const fallbackResponse = await fallbackProvider.generate(
+          messages,
+          fallbackConfig,
         );
         fullContent = fallbackResponse.content;
-        if (fullContent) onChunk(fullContent);
-        modelUsed = fallbackModel;
-      }
-
-      if (!modelUsed || modelUsed === 'ollama') {
-        modelUsed = ollamaModel || 'ollama-default';
+        onChunk(fullContent);
+        modelUsed = fallbackResponse.model;
+      } else {
+        throw error;
       }
     }
 
@@ -686,5 +572,32 @@ export class ChatDomainService {
       text.includes('requires more system memory') ||
       text.includes('out of memory')
     );
+  }
+
+  /**
+   * Build an array of AIMessage from history and current content.
+   * This converts the internal message format to the standardized AI provider format.
+   */
+  private buildMessages(
+    content: string,
+    history: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+  ): AIMessage[] {
+    const messages: AIMessage[] = [];
+
+    // Add history messages
+    for (const msg of history) {
+      messages.push({
+        role: msg.role as AIMessageRole,
+        content: msg.content,
+      });
+    }
+
+    // Add current user message
+    messages.push({
+      role: AIMessageRole.USER,
+      content,
+    });
+
+    return messages;
   }
 }

@@ -1,12 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import {
-  DeepSeekModule,
-  GeminiModule,
-  OllamaModule,
-  OpenAIModule,
-} from 'libs/ai';
+import { AIModule } from 'libs/ai';
 import { SubscriptionsModule } from 'libs/domain/subscriptions';
 import { UsageService } from 'libs/domain/usage';
 import { PrismaModule } from 'libs/platform/prisma';
@@ -28,10 +23,7 @@ import { ChatDomainService } from './chat-domain.service';
     ]),
     PrismaModule,
     SubscriptionsModule,
-    OllamaModule,
-    GeminiModule,
-    OpenAIModule,
-    DeepSeekModule,
+    AIModule.forRoot(),
   ],
   controllers: [ChatNatsController],
   providers: [ChatDomainService, UsageService, ChatEventsPublisher],
