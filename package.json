@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "scripts": {
     "build": "nest build",
     "build:gateway": "nest build gateway",
@@ -45,6 +48,8 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:seed:models": "ts-node prisma/seed-models.ts",
+    "db:seed-models": "ts-node prisma/seed-models.ts",
     "deploy:setup": "npm run prisma:generate && npm run prisma:migrate:deploy && npm run build",
     "deploy:start": "npm run deploy:setup && npm run start:prod"
   },

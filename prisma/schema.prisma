@@ -64,6 +64,15 @@ enum MessageStatus {
   @@schema("chat")
 }
 
+// Model tiers for AI model access control
+enum ModelTier {
+  FREE
+  REGISTERED
+  PREMIUM
+
+  @@schema("billing")
+}
+
 // Models
 model User {
   // Users domain lives in the "users" schema to reduce cross-service coupling.
@@ -265,5 +274,25 @@ model BillingUsageEvent {
   @@index([userId, occurredAt])
   @@index([conversationId, occurredAt])
   @@map("billing_usage_events")
+  @@schema("billing")
+}
+
+// AI Model configurations
+model ModelConfig {
+  id            String     @id @default(uuid())
+  name          String     @unique        // e.g., "kimi-k2:1t-cloud"
+  displayName   String                    // e.g., "Kimi K2 1T Cloud"
+  provider      String                    // "ollama" | "gemini" | "openai" | "deepseek"
+  tier          ModelTier                 // FREE | REGISTERED | PREMIUM
+  isActive      Boolean    @default(true)
+  isDefault     Boolean    @default(false)
+  maxTokens     Int?                      // override default max tokens per model
+  capabilities  String[]   @default([])  // e.g., ["text-generation", "vision", "code"]
+  description   String?
+  sortOrder     Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@map("model_configs")
   @@schema("billing")
 }
