@@ -195,7 +195,6 @@ export class AIModule {
         'GEMINI_PROVIDER',
         'DEEPSEEK_PROVIDER',
         'OPENAI_PROVIDER',
-        MODELS_SERVICE,
       ],
     };
   }
