@@ -1,0 +1,13 @@
+{
+  "status": "init",
+  "executionArgs": {
+    "projectName": "r3chat-saas-backend",
+    "projectPath": "D:\\WORKSPACES\\DOCKER\\docker-r3chat\\saas-backend",
+    "testIds": [],
+    "additionalInstruction": "Just run TypeScript compiler to check for errors. Run: npx tsc --noEmit",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-p9-XX_BmrWnSjVA47p32azd-KB_t4rmqDclC3-ayi7RRtmidFYRzk4vmWS_y5JM4b-q6K6uZTKklbq_eEhqzcYXnzi12ByHSy6XSCqbJZrTUiQ2DRg4pA3izAJBefZgfVpQ"
+    }
+  }
+}

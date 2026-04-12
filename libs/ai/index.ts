@@ -1,15 +1,24 @@
-export { OllamaModule } from '../../src/integrations/ai/ollama/ollama.module';
-export { OllamaService } from '../../src/integrations/ai/ollama/ollama.service';
+// AI Library - Consolidated exports from @libs/ai
+// Phase 6: Old services removed, now using new provider system
 
-export { GeminiModule } from '../../src/integrations/ai/gemini/gemini.module';
-export { GeminiService } from '../../src/integrations/ai/gemini/gemini.service';
+// Core module and registry
+export { AIModule, type AIModuleOptions } from './src/ai.module';
+export { AIProviderRegistry } from './src/registry';
 
-export { OpenAIModule } from '../../src/integrations/ai/openai/openai.module';
-export { OpenAIService } from '../../src/integrations/ai/openai/openai.service';
+// Abstract base class
+export { BaseAIProvider } from './src/abstract';
 
-export { DeepSeekModule } from '../../src/integrations/ai/deepseek/deepseek.module';
-export { DeepSeekService } from '../../src/integrations/ai/deepseek/deepseek.service';
-
-// AI Provider Foundation Interfaces (Phase 1 of refactor-ai-providers)
+// Core interfaces
 export * from './src/interfaces';
+
+// Token counter
 export * from './src/token';
+
+// Provider implementations
+export {
+  OllamaProvider,
+  type OllamaProviderConfig,
+  GeminiProvider,
+  DeepSeekProvider,
+  OpenAIProvider,
+} from './src/providers';

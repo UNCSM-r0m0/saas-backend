@@ -8,16 +8,13 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
-import { OllamaModule } from './integrations/ai/ollama/ollama.module';
 import { UsageService } from './usage/usage.service';
 import { StripeModule } from './stripe/stripe.module';
-import { GeminiModule } from './integrations/ai/gemini/gemini.module';
-import { OpenAIModule } from './integrations/ai/openai/openai.module';
-import { DeepSeekModule } from './integrations/ai/deepseek/deepseek.module';
 import { ModelsModule } from './models/models.module';
 import { UploadModule } from './upload/upload.module';
 import { ThrottlerConfigModule } from './common/throttler/throttler.module';
 import { CacheConfigModule } from './common/cache/cache.module';
+import { AIModule } from '@libs/ai';
 
 
 @Module({
@@ -98,11 +95,8 @@ import { CacheConfigModule } from './common/cache/cache.module';
     AuthModule,
     ChatModule,
     SubscriptionsModule,
-    OllamaModule,
+    AIModule.forRoot(),
     StripeModule,
-    GeminiModule,
-    OpenAIModule,
-    DeepSeekModule,
     ModelsModule,
     UploadModule,
     ThrottlerConfigModule,

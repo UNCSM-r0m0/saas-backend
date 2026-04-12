@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req, Inject } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -6,14 +6,16 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { OllamaService } from '../integrations/ai/ollama/ollama.service';
+import { AIProviderRegistry, AIModelInfo } from '@libs/ai';
 
 @ApiTags('models')
 @Controller('models')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ModelsController {
-  constructor(private readonly ollamaService: OllamaService) {}
+  constructor(
+    @Inject(AIProviderRegistry) private readonly aiRegistry: AIProviderRegistry,
+  ) {}
 
   // ENDPOINT PRIVADO: Requiere autenticación
   // Solo usuarios logueados pueden ver los modelos disponibles
@@ -53,8 +55,18 @@ export class ModelsController {
   })
   @ApiResponse({ status: 401, description: 'No autorizado - Token JWT requerido' })
   async getAvailableModels() {
-    const availableModels = await this.ollamaService.listModels();
-    const ollamaAvailable = this.ollamaService.isAvailable();
+    // Get all models from the registry
+    const allModelNames = this.aiRegistry.getAvailableModels();
+    
+    // Get the default provider to check availability
+    let ollamaAvailable = false;
+    try {
+      const defaultProvider = this.aiRegistry.getDefaultProvider();
+      ollamaAvailable = defaultProvider?.isAvailable() ?? false;
+    } catch {
+      // No default provider configured
+    }
+    
     const publicModels = new Set(
       (process.env.PUBLIC_MODELS || '')
         .split(',')
@@ -68,7 +80,7 @@ export class ModelsController {
         .filter(Boolean),
     );
 
-    const tieredModels = availableModels
+    const tieredModels = allModelNames
       .filter(
         (modelName) => publicModels.has(modelName) || proModels.has(modelName),
       )

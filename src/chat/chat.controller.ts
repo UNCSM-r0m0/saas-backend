@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Logger, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Req, Res, Inject } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatClient } from './chat.client';
-import { OpenAIService } from '../integrations/ai/openai/openai.service';
+import { AIProviderRegistry } from '@libs/ai';
 import {
   getUserIdFromAuthHeader,
   getUserIdFromReq,
@@ -19,7 +19,7 @@ export class ChatController {
 
   constructor(
     private readonly chatClient: ChatClient,
-    private readonly openaiService: OpenAIService,
+    @Inject(AIProviderRegistry) private readonly aiRegistry: AIProviderRegistry,
   ) {}
 
   @Get('models/openai/info')
@@ -30,9 +30,32 @@ export class ChatController {
       'Retorna información del modelo configurado y estadísticas de la cola de concurrencia',
   })
   async getOpenAIModelInfo() {
+    // Get OpenAI provider from registry
+    const openaiProvider = this.aiRegistry.getProviderForModel('gpt-4o-mini');
+    
+    if (!openaiProvider) {
+      return {
+        success: false,
+        data: {
+          name: 'not-configured',
+          provider: 'OpenAI',
+          available: false,
+          features: [],
+        },
+      };
+    }
+
+    // Check if provider has getModelInfo method (OpenAIProvider has it)
+    const modelInfo = (openaiProvider as any).getModelInfo?.() ?? {
+      name: 'gpt-4o-mini',
+      provider: 'OpenAI',
+      available: openaiProvider.isAvailable(),
+      features: ['text-generation', 'streaming'],
+    };
+
     return {
       success: true,
-      data: this.openaiService.getModelInfo(),
+      data: modelInfo,
     };
   }
 

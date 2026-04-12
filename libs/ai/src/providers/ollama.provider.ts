@@ -7,7 +7,8 @@ import {
   AIStreamChunk,
   AIMessageRole,
   AIModelInfo,
-} from '@libs/ai';
+} from '../index';
+import type { AIProvider } from '../interfaces';
 
 /**
  * Configuration interface for Ollama-specific settings.
