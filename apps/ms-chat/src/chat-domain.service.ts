@@ -15,7 +15,7 @@ import {
 import { SubscriptionsService } from 'libs/domain/subscriptions';
 import { UsageService } from 'libs/domain/usage';
 import { PrismaService } from 'libs/platform/prisma';
-import type { ChatSendMessageDto as SendMessageDto } from 'libs/contracts/chat';
+import type { ChatSendMessageDto as SendMessageDto, ModelConfigDto } from 'libs/contracts/chat';
 
 @Injectable()
 export class ChatDomainService {
@@ -91,9 +91,11 @@ export class ChatDomainService {
     const history = userId ? await this.getChatHistory(chatId!) : [];
     const selectedModel = (dto.model || 'ollama').trim();
 
-    const isPremiumRequested = ['gemini', 'openai', 'deepseek'].includes(
-      selectedModel,
-    );
+    // Use DB-driven tier check if modelConfig is provided, otherwise fall back to legacy check
+    const isPremiumRequested = dto.modelConfig
+      ? dto.modelConfig.tier === 'PREMIUM'
+      : this.isPremiumModelLegacy(selectedModel);
+    
     if (isPremiumRequested && tier !== SubscriptionTier.PREMIUM) {
       throw new ForbiddenException(
         'Este modelo es Premium. Actualiza tu suscripción para usarlo.',
@@ -106,10 +108,10 @@ export class ChatDomainService {
     // Get provider from registry
     const provider = this.registry.getProvider(selectedModel);
 
-    // Build provider config
+    // Build provider config - use maxTokens from modelConfig if available
     const config: AIProviderConfig = {
       model: selectedModel,
-      maxTokens: limits.maxTokensPerMessage,
+      maxTokens: dto.modelConfig?.maxTokens ?? limits.maxTokensPerMessage,
       temperature: 0.7,
       systemPrompt: 'Eres un asistente de IA útil y amigable.',
     };
@@ -126,7 +128,7 @@ export class ChatDomainService {
       modelUsed = response.model;
     } catch (error: any) {
       // Handle Ollama memory errors with fallback
-      const fallbackModel = this.resolveOllamaFallbackModel(selectedModel);
+      const fallbackModel = this.resolveOllamaFallbackModel(selectedModel, dto.modelConfig);
       if (fallbackModel && this.isModelMemoryError(error)) {
         this.logger.warn(
           `Model ${selectedModel} failed with memory error, trying fallback: ${fallbackModel}`,
@@ -248,9 +250,12 @@ export class ChatDomainService {
 
     const history = userId ? await this.getChatHistory(chatId!) : [];
     const selectedModel = (dto.model || 'ollama').trim();
-    const isPremiumRequested = ['gemini', 'openai', 'deepseek'].includes(
-      selectedModel,
-    );
+    
+    // Use DB-driven tier check if modelConfig is provided, otherwise fall back to legacy check
+    const isPremiumRequested = dto.modelConfig
+      ? dto.modelConfig.tier === 'PREMIUM'
+      : this.isPremiumModelLegacy(selectedModel);
+    
     if (isPremiumRequested && tier !== SubscriptionTier.PREMIUM) {
       throw new ForbiddenException(
         'Este modelo es Premium. Actualiza tu suscripción para usarlo.',
@@ -263,10 +268,10 @@ export class ChatDomainService {
     // Get provider from registry
     const provider = this.registry.getProvider(selectedModel);
 
-    // Build provider config
+    // Build provider config - use maxTokens from modelConfig if available
     const config: AIProviderConfig = {
       model: selectedModel,
-      maxTokens: limits.maxTokensPerMessage,
+      maxTokens: dto.modelConfig?.maxTokens ?? limits.maxTokensPerMessage,
       temperature: 0.7,
       systemPrompt: 'Eres un asistente de IA útil y amigable.',
     };
@@ -288,7 +293,7 @@ export class ChatDomainService {
       }
     } catch (error: any) {
       // Handle Ollama memory errors with fallback
-      const fallbackModel = this.resolveOllamaFallbackModel(selectedModel);
+      const fallbackModel = this.resolveOllamaFallbackModel(selectedModel, dto.modelConfig);
       if (fallbackModel && this.isModelMemoryError(error)) {
         this.logger.warn(
           `Model ${selectedModel} failed with memory error in streaming, trying fallback: ${fallbackModel}`,
@@ -529,6 +534,7 @@ export class ChatDomainService {
 
   private resolveOllamaFallbackModel(
     currentModel?: string,
+    modelConfig?: ModelConfigDto,
   ): string | undefined {
     const normalize = (value?: string) => {
       if (!value) return undefined;
@@ -539,6 +545,16 @@ export class ChatDomainService {
         : trimmed;
     };
 
+    // First priority: use fallbackModel from modelConfig if available
+    if (modelConfig?.fallbackModel) {
+      const normalizedFallback = normalize(modelConfig.fallbackModel);
+      const normalizedCurrent = normalize(currentModel);
+      if (normalizedFallback && normalizedFallback !== normalizedCurrent) {
+        return normalizedFallback;
+      }
+    }
+
+    // Legacy fallback: use env vars
     const firstFrom = (raw?: string) =>
       normalize(
         raw
@@ -555,6 +571,14 @@ export class ChatDomainService {
 
     const normalizedCurrent = normalize(currentModel);
     return candidates.find((candidate) => candidate !== normalizedCurrent);
+  }
+
+  /**
+   * Legacy check for premium models - used when modelConfig is not provided
+   * for backward compatibility
+   */
+  private isPremiumModelLegacy(model: string): boolean {
+    return ['gemini', 'openai', 'deepseek'].includes(model);
   }
 
   private isModelMemoryError(error: any): boolean {

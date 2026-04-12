@@ -8,8 +8,23 @@
  * This registry is used by ChatDomainService to route requests to the appropriate provider.
  */
 
-import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, Inject, OnModuleInit, Logger, Optional, InjectionToken } from '@nestjs/common';
 import { AIProvider, AI_PROVIDER_REGISTRY } from '../interfaces';
+import { ModelConfig } from '@prisma/client';
+
+/**
+ * Injection token for ModelsService.
+ * Used to inject the models service without direct dependency.
+ */
+export const MODELS_SERVICE = new InjectionToken<ModelsServiceInterface>('MODELS_SERVICE');
+
+/**
+ * Service interface for loading models from database.
+ * Using interface to avoid circular dependency.
+ */
+export interface ModelsServiceInterface {
+  getActiveModels(): Promise<ModelConfig[]>;
+}
 
 /**
  * Configuration for registering a provider with the registry.
@@ -53,61 +68,190 @@ export class AIProviderRegistry implements OnModuleInit {
   private providers = new Map<string, AIProvider>();
   private modelToProvider = new Map<string, AIProvider>();
   private defaultProvider?: AIProvider;
+  private initialConfig: ProviderRegistration[] = [];
+  private isInitializedFromDB = false;
 
   constructor(
     @Inject(AI_PROVIDER_REGISTRY)
     private readonly providerConfigs: ProviderRegistration[],
+    @Optional()
+    private readonly modelsService?: ModelsServiceInterface,
   ) {}
 
   /**
-   * Initialize the registry by registering all configured providers.
-   * Called automatically by NestJS when the module is initialized.
-   */
-  onModuleInit() {
-    for (const config of this.providerConfigs) {
-      this.register(config);
-    }
-  }
+    * Initialize the registry by registering all configured providers.
+    * Called automatically by NestJS when the module is initialized.
+    *
+    * First, it registers providers from the initial config (env vars).
+    * Then, if ModelsService is available, it attempts to load from DB
+    * and re-registers providers based on DB configuration.
+    */
+   async onModuleInit() {
+     // Save initial config for potential re-registration
+     this.initialConfig = [...this.providerConfigs];
+
+     // First pass: register from initial config (env vars)
+     for (const config of this.providerConfigs) {
+       this.register(config);
+     }
+
+     // Second pass: if ModelsService is available, try to load from DB
+     if (this.modelsService) {
+       try {
+         await this.loadFromDatabase();
+       } catch (error) {
+         this.logger.warn(
+           `Failed to load models from database, using env var fallback: ${error instanceof Error ? error.message : 'Unknown error'}`
+         );
+       }
+     } else {
+       this.logger.log('ModelsService not available, using environment variable configuration only');
+     }
+   }
 
   /**
-   * Register a provider with the registry.
-   *
-   * Each model is registered with BOTH:
-   * - Its plain name: 'kimi-k2:1t-cloud'
-   * - Its prefixed name: 'ollama-kimi-k2:1t-cloud'
-   *
-   * This allows lookups to work regardless of whether the
-   * client sends the model name with or without the provider prefix.
-   *
-   * @param config - The provider registration configuration
-   */
-  register(config: ProviderRegistration): void {
-    const providerName = config.provider.name;
+    * Load model configurations from the database and re-register providers.
+    * Falls back to env vars if DB returns empty array.
+    */
+   private async loadFromDatabase(): Promise<void> {
+     this.logger.log('Loading model configurations from database...');
 
-    // Register provider by name for direct lookup
-    this.providers.set(providerName, config.provider);
+     const dbModels = await this.modelsService!.getActiveModels();
 
-    // Map each model to this provider — both plain and prefixed
-    for (const model of config.models) {
-      // Plain model name (e.g., 'kimi-k2:1t-cloud')
-      this.modelToProvider.set(model, config.provider);
+     if (!dbModels || dbModels.length === 0) {
+       this.logger.log('No models found in database, keeping environment variable configuration');
+       return;
+     }
 
-      // Prefixed model name (e.g., 'ollama-kimi-k2:1t-cloud')
-      const prefixedModel = `${providerName}-${model}`;
-      this.modelToProvider.set(prefixedModel, config.provider);
-    }
+     this.logger.log(`Found ${dbModels.length} models in database, re-registering providers...`);
 
-    // Set as default if specified
-    if (config.isDefault) {
-      this.defaultProvider = config.provider;
-    }
+     // Clear existing registrations
+     this.clearRegistrations();
 
-    if (config.provider.isAvailable()) {
-      this.logger.log(
-        `Registered ${providerName} with ${config.models.length} models: ${config.models.join(', ')}`,
-      );
-    }
-  }
+     // Register models from DB
+     await this.registerModelsFromDB(dbModels);
+
+     this.isInitializedFromDB = true;
+     this.logger.log(`Successfully registered ${dbModels.length} models from database`);
+   }
+
+  /**
+    * Clear all current registrations.
+    */
+   private clearRegistrations(): void {
+     this.providers.clear();
+     this.modelToProvider.clear();
+     this.defaultProvider = undefined;
+   }
+
+  /**
+    * Register models from database configuration.
+    * This replaces the env var based registration.
+    *
+    * @param models - Array of ModelConfig from database
+    */
+   async registerModelsFromDB(models: ModelConfig[]): Promise<void> {
+     // Group models by provider
+     const modelsByProvider = new Map<string, ModelConfig[]>();
+
+     for (const model of models) {
+       if (!model.isActive) continue;
+
+       const providerName = model.provider.toLowerCase();
+       if (!modelsByProvider.has(providerName)) {
+         modelsByProvider.set(providerName, []);
+       }
+       modelsByProvider.get(providerName)!.push(model);
+     }
+
+     // Register each provider with its models
+     for (const [providerName, providerModels] of modelsByProvider) {
+       // Find the provider instance from initial config
+       const providerConfig = this.initialConfig.find(
+         config => config.provider.name.toLowerCase() === providerName
+       );
+
+       if (!providerConfig) {
+         this.logger.warn(`Provider "${providerName}" not found in initial configuration, skipping ${providerModels.length} models`);
+         continue;
+       }
+
+       // Extract model names
+       const modelNames = providerModels.map(m => m.name);
+
+       // Find the default model for this provider
+       const defaultModel = providerModels.find(m => m.isDefault);
+
+       this.register({
+         provider: providerConfig.provider,
+         models: modelNames,
+         isDefault: defaultModel ? true : providerConfig.isDefault,
+       });
+
+       this.logger.log(`Registered ${providerName} with ${modelNames.length} models from database`);
+     }
+   }
+
+  /**
+    * Refresh the registry by reloading models from database.
+    * Can be called after admin creates/updates a model.
+    */
+   async refreshFromDatabase(): Promise<void> {
+     if (!this.modelsService) {
+       this.logger.warn('Cannot refresh: ModelsService not available');
+       return;
+     }
+
+     this.logger.log('Refreshing model registry from database...');
+     await this.loadFromDatabase();
+   }
+
+  /**
+    * Check if the registry was initialized from database.
+    */
+   isUsingDatabaseConfig(): boolean {
+     return this.isInitializedFromDB;
+   }
+
+  /**
+    * Register a provider with the registry.
+    *
+    * Each model is registered with BOTH:
+    * - Its plain name: 'kimi-k2:1t-cloud'
+    * - Its prefixed name: 'ollama-kimi-k2:1t-cloud'
+    *
+    * This allows lookups to work regardless of whether the
+    * client sends the model name with or without the provider prefix.
+    *
+    * @param config - The provider registration configuration
+    */
+   register(config: ProviderRegistration): void {
+     const providerName = config.provider.name;
+
+     // Register provider by name for direct lookup
+     this.providers.set(providerName, config.provider);
+
+     // Map each model to this provider — both plain and prefixed
+     for (const model of config.models) {
+       // Plain model name (e.g., 'kimi-k2:1t-cloud')
+       this.modelToProvider.set(model, config.provider);
+
+       // Prefixed model name (e.g., 'ollama-kimi-k2:1t-cloud')
+       const prefixedModel = `${providerName}-${model}`;
+       this.modelToProvider.set(prefixedModel, config.provider);
+     }
+
+     // Set as default if specified
+     if (config.isDefault) {
+       this.defaultProvider = config.provider;
+     }
+
+     if (config.provider.isAvailable()) {
+       this.logger.log(
+         `Registered ${providerName} with ${config.models.length} models: ${config.models.join(', ')}`,
+       );
+     }
+   }
 
   /**
    * Get the provider for a specific model.

@@ -20,13 +20,18 @@ import type {
   ChatUpdateFirstMessagePayload,
   ChatUsageStatsResponseV1,
   ChatUsageStatsPayload,
+  ModelConfigDto,
 } from 'libs/contracts/chat';
+import { ModelsService } from '../models/models.service';
 
 @Injectable()
 export class ChatClient {
   private readonly logger = new Logger(ChatClient.name);
 
-  constructor(@Inject('CHAT_NATS') private readonly client: ClientProxy) {}
+  constructor(
+    @Inject('CHAT_NATS') private readonly client: ClientProxy,
+    private readonly modelsService: ModelsService,
+  ) {}
 
   private unwrapV1<T>(response: T | ChatResponseEnvelopeV1<T>): T {
     if (
@@ -56,15 +61,36 @@ export class ChatClient {
     }
   }
 
-  sendMessage(
+  async sendMessage(
     dto: ChatSendMessagePayload['dto'],
     userId?: string,
     streamId?: string,
     messageId?: string,
     correlationId?: string,
   ): Promise<ChatSendMessageResponseV1> {
+    // Look up model config from DB if model is specified
+    let modelConfig: ModelConfigDto | undefined;
+    if (dto.model) {
+      const modelFromDb = await this.modelsService.getByName(dto.model);
+      if (modelFromDb) {
+        modelConfig = {
+          name: modelFromDb.name,
+          displayName: modelFromDb.displayName,
+          provider: modelFromDb.provider,
+          tier: modelFromDb.tier,
+          maxTokens: modelFromDb.maxTokens ?? undefined,
+          isActive: modelFromDb.isActive,
+          isDefault: modelFromDb.isDefault,
+          fallbackModel: modelFromDb.fallbackModel ?? undefined,
+        };
+      }
+    }
+
     const payload: ChatSendMessagePayload = {
-      dto,
+      dto: {
+        ...dto,
+        modelConfig,
+      },
       userId,
       streamId,
       messageId,

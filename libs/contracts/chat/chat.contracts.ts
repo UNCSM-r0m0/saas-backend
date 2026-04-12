@@ -1,9 +1,21 @@
+export interface ModelConfigDto {
+  name: string;
+  displayName: string;
+  provider: string;
+  tier: 'PUBLIC' | 'PREMIUM';
+  maxTokens?: number;
+  isActive: boolean;
+  isDefault: boolean;
+  fallbackModel?: string;
+}
+
 export interface ChatSendMessageDto {
   content: string;
   model?: string;
   anonymousId?: string;
   conversationId?: string;
   context?: string;
+  modelConfig?: ModelConfigDto;
 }
 
 export interface ChatSendMessagePayload {

@@ -12,6 +12,7 @@ import { AIModule } from 'libs/ai';
 import { ChatGatewayAuthService } from './gateway/chat-gateway-auth.service';
 import { ChatGatewayRoomService } from './gateway/chat-gateway-room.service';
 import { ChatStreamSessionService } from './gateway/chat-stream-session.service';
+import { ModelsModule } from '../models/models.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ChatStreamSessionService } from './gateway/chat-stream-session.service'
     AuthModule,
     WsModule,
     AIModule.forRoot(),
+    ModelsModule,
   ],
   providers: [
     ChatGateway,

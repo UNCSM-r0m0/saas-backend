@@ -2,12 +2,19 @@ import { Module } from '@nestjs/common';
 import { ModelsController } from './models.controller';
 import { ModelsService } from './models.service';
 import { PrismaModule } from '../prisma/prisma.module';
-import { AIModule } from 'libs/ai';
+import { MODELS_SERVICE } from 'libs/ai';
+import { CacheConfigModule } from '../common/cache/cache.module';
 
 @Module({
-    imports: [PrismaModule, AIModule.forRoot()],
+    imports: [PrismaModule, CacheConfigModule],
     controllers: [ModelsController],
-    providers: [ModelsService],
-    exports: [ModelsService],
+    providers: [
+        ModelsService,
+        {
+            provide: MODELS_SERVICE,
+            useExisting: ModelsService,
+        },
+    ],
+    exports: [ModelsService, MODELS_SERVICE],
 })
 export class ModelsModule { }

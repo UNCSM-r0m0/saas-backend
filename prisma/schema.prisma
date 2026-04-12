@@ -286,6 +286,7 @@ model ModelConfig {
   isActive      Boolean    @default(true)
   isDefault     Boolean    @default(false)
   maxTokens     Int?                      // override default max tokens per model
+  fallbackModel String?                   // fallback model name if this one fails (e.g., memory error)
   capabilities  String[]   @default([])  // e.g., ["text-generation", "vision", "code"]
   description   String?
   sortOrder     Int        @default(0)

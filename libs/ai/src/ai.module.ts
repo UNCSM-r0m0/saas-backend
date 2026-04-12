@@ -29,6 +29,12 @@ import {
 } from './providers';
 
 /**
+ * Injection token for ModelsService.
+ * Used to avoid circular dependencies between AI module and Models module.
+ */
+export const MODELS_SERVICE = Symbol('MODELS_SERVICE');
+
+/**
  * Options for configuring the AI module.
  */
 export interface AIModuleOptions {
@@ -153,13 +159,28 @@ export class AIModule {
       ],
     };
 
+    // AIProviderRegistry with optional ModelsService injection
+    const registryServiceProvider: Provider = {
+      provide: AIProviderRegistry,
+      useFactory: (
+        registryConfigs: { provider: AIProvider; models: string[]; isDefault?: boolean }[],
+        modelsService?: { getActiveModels: () => Promise<any[]> },
+      ) => {
+        return new AIProviderRegistry(registryConfigs, modelsService);
+      },
+      inject: [
+        AI_PROVIDER_REGISTRY,
+        { token: MODELS_SERVICE, optional: true },
+      ],
+    };
+
     providers.push(
       ollamaProvider,
       geminiProvider,
       deepseekProvider,
       openaiProvider,
       registryProvider,
-      AIProviderRegistry,
+      registryServiceProvider,
     );
 
     return {
@@ -174,89 +195,90 @@ export class AIModule {
         'GEMINI_PROVIDER',
         'DEEPSEEK_PROVIDER',
         'OPENAI_PROVIDER',
+        MODELS_SERVICE,
       ],
     };
   }
 
   /**
-   * Create the registry configuration with all providers.
-   */
-  private static createRegistryConfig(
-    config: ConfigService,
-    options: AIModuleOptions,
-    providers: {
-      ollama: OllamaProvider | null;
-      gemini: GeminiProvider | null;
-      deepseek: DeepSeekProvider | null;
-      openai: OpenAIProvider | null;
-    },
-  ) {
-    const registryConfig: { provider: AIProvider; models: string[]; isDefault?: boolean }[] = [];
+    * Create the registry configuration with all providers.
+    */
+   private static createRegistryConfig(
+     config: ConfigService,
+     options: AIModuleOptions,
+     providers: {
+       ollama: OllamaProvider | null;
+       gemini: GeminiProvider | null;
+       deepseek: DeepSeekProvider | null;
+       openai: OpenAIProvider | null;
+     },
+   ) {
+     const registryConfig: { provider: AIProvider; models: string[]; isDefault?: boolean }[] = [];
 
-    // Parse models from environment variables
-    const publicModels = this.parseModels(config.get<string>('PUBLIC_MODELS', ''));
-    const proModels = this.parseModels(config.get<string>('PRO_MODELS', ''));
-    const allOllamaModels = [...publicModels, ...proModels];
+     // Parse models from environment variables
+     const publicModels = this.parseModels(config.get<string>('PUBLIC_MODELS', ''));
+     const proModels = this.parseModels(config.get<string>('PRO_MODELS', ''));
+     const allOllamaModels = [...publicModels, ...proModels];
 
-    // Parse other provider models (comma-separated or use defaults)
-    const geminiModels = this.parseModels(config.get<string>('GEMINI_MODELS', 'gemini-2.0-flash-exp'));
-    const openaiModels = this.parseModels(config.get<string>('OPENAI_MODELS', 'gpt-4o-mini'));
-    const deepseekModels = this.parseModels(config.get<string>('DEEPSEEK_MODELS', 'deepseek-chat'));
+     // Parse other provider models (comma-separated or use defaults)
+     const geminiModels = this.parseModels(config.get<string>('GEMINI_MODELS', 'gemini-2.0-flash-exp'));
+     const openaiModels = this.parseModels(config.get<string>('OPENAI_MODELS', 'gpt-4o-mini'));
+     const deepseekModels = this.parseModels(config.get<string>('DEEPSEEK_MODELS', 'deepseek-chat'));
 
-    // Register Ollama provider (default)
-    if (providers.ollama && (providers.ollama.isAvailable() || !options.skipUnavailable)) {
-      registryConfig.push({
-        provider: providers.ollama,
-        models: allOllamaModels.length > 0 ? allOllamaModels : ['qwen2.5-coder:7b'],
-        isDefault: options.defaultProvider === 'ollama' || !options.defaultProvider,
-      });
-      this.logger.log(`Registered Ollama provider with ${allOllamaModels.length} models`);
-    }
+     // Register Ollama provider (default)
+     if (providers.ollama && (providers.ollama.isAvailable() || !options.skipUnavailable)) {
+       registryConfig.push({
+         provider: providers.ollama,
+         models: allOllamaModels.length > 0 ? allOllamaModels : ['qwen2.5-coder:7b'],
+         isDefault: options.defaultProvider === 'ollama' || !options.defaultProvider,
+       });
+       this.logger.log(`Registered Ollama provider with ${allOllamaModels.length} models`);
+     }
 
-    // Register Gemini provider
-    if (providers.gemini && (providers.gemini.isAvailable() || !options.skipUnavailable)) {
-      registryConfig.push({
-        provider: providers.gemini,
-        models: geminiModels,
-        isDefault: options.defaultProvider === 'gemini',
-      });
-      this.logger.log(`Registered Gemini provider with ${geminiModels.length} models`);
-    }
+     // Register Gemini provider
+     if (providers.gemini && (providers.gemini.isAvailable() || !options.skipUnavailable)) {
+       registryConfig.push({
+         provider: providers.gemini,
+         models: geminiModels,
+         isDefault: options.defaultProvider === 'gemini',
+       });
+       this.logger.log(`Registered Gemini provider with ${geminiModels.length} models`);
+     }
 
-    // Register OpenAI provider
-    if (providers.openai && (providers.openai.isAvailable() || !options.skipUnavailable)) {
-      registryConfig.push({
-        provider: providers.openai,
-        models: openaiModels,
-        isDefault: options.defaultProvider === 'openai',
-      });
-      this.logger.log(`Registered OpenAI provider with ${openaiModels.length} models`);
-    }
+     // Register OpenAI provider
+     if (providers.openai && (providers.openai.isAvailable() || !options.skipUnavailable)) {
+       registryConfig.push({
+         provider: providers.openai,
+         models: openaiModels,
+         isDefault: options.defaultProvider === 'openai',
+       });
+       this.logger.log(`Registered OpenAI provider with ${openaiModels.length} models`);
+     }
 
-    // Register DeepSeek provider
-    if (providers.deepseek && (providers.deepseek.isAvailable() || !options.skipUnavailable)) {
-      registryConfig.push({
-        provider: providers.deepseek,
-        models: deepseekModels,
-        isDefault: options.defaultProvider === 'deepseek',
-      });
-      this.logger.log(`Registered DeepSeek provider with ${deepseekModels.length} models`);
-    }
+     // Register DeepSeek provider
+     if (providers.deepseek && (providers.deepseek.isAvailable() || !options.skipUnavailable)) {
+       registryConfig.push({
+         provider: providers.deepseek,
+         models: deepseekModels,
+         isDefault: options.defaultProvider === 'deepseek',
+       });
+       this.logger.log(`Registered DeepSeek provider with ${deepseekModels.length} models`);
+     }
 
-    return registryConfig;
-  }
+     return registryConfig;
+   }
 
-  /**
-   * Parse a comma-separated string of models into an array.
-   *
-   * @param modelsStr - Comma-separated model names
-   * @returns Array of trimmed model names
-   */
-  private static parseModels(modelsStr?: string): string[] {
-    if (!modelsStr) return [];
-    return modelsStr
-      .split(',')
-      .map((m) => m.trim())
-      .filter((m) => m.length > 0);
-  }
-}
+   /**
+    * Parse a comma-separated string of models into an array.
+    *
+    * @param modelsStr - Comma-separated model names
+    * @returns Array of trimmed model names
+    */
+   private static parseModels(modelsStr?: string): string[] {
+     if (!modelsStr) return [];
+     return modelsStr
+       .split(',')
+       .map((m) => m.trim())
+       .filter((m) => m.length > 0);
+   }
+ }
