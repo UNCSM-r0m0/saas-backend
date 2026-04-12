@@ -50,14 +50,14 @@ async function main() {
 
   const allModels: ModelConfigInput[] = [];
 
-  // Public models → FREE tier
+  // Public models → PUBLIC tier (available to all logged-in users)
   let isFirstPublic = true;
   for (const name of publicModels) {
     allModels.push({
       name,
       displayName: getDisplayName(name),
       provider: inferProvider(name),
-      tier: ModelTier.FREE,
+      tier: ModelTier.PUBLIC,
       maxTokens: freeTierTokens,
       capabilities: ['text-generation'],
       isDefault: isFirstPublic,
@@ -66,7 +66,7 @@ async function main() {
     isFirstPublic = false;
   }
 
-  // Pro models → PREMIUM tier
+  // Pro models → PREMIUM tier (available only to premium subscribers)
   for (const name of proModels) {
     allModels.push({
       name,

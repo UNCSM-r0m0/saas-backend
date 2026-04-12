@@ -73,21 +73,18 @@ export class ModelsService {
 
   /**
    * Check if user has access to a model based on their tier
+   * PUBLIC models: accessible to any logged-in user (both registered and premium)
+   * PREMIUM models: accessible only to premium subscribers
    */
   async checkAccess(modelName: string, userTier: ModelTier): Promise<boolean> {
     const model = await this.getByName(modelName);
     if (!model || !model.isActive) return false;
 
-    // FREE users can only access FREE models
-    // REGISTERED users can access FREE and REGISTERED models
-    // PREMIUM users can access all models
-    const tierHierarchy = {
-      [ModelTier.FREE]: 0,
-      [ModelTier.REGISTERED]: 1,
-      [ModelTier.PREMIUM]: 2,
-    };
+    // PUBLIC models are accessible to all logged-in users
+    if (model.tier === ModelTier.PUBLIC) return true;
 
-    return tierHierarchy[userTier] >= tierHierarchy[model.tier];
+    // PREMIUM models require premium subscription
+    return userTier === ModelTier.PREMIUM;
   }
 
   /**
@@ -148,8 +145,7 @@ export class ModelsService {
    */
   private async invalidateCache(): Promise<void> {
     await this.cache.del(this.CACHE_KEYS.ALL_ACTIVE);
-    await this.cache.del(this.CACHE_KEYS.BY_TIER(ModelTier.FREE));
-    await this.cache.del(this.CACHE_KEYS.BY_TIER(ModelTier.REGISTERED));
+    await this.cache.del(this.CACHE_KEYS.BY_TIER(ModelTier.PUBLIC));
     await this.cache.del(this.CACHE_KEYS.BY_TIER(ModelTier.PREMIUM));
     this.logger.debug('Invalidated model cache');
   }

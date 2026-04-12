@@ -66,9 +66,8 @@ enum MessageStatus {
 
 // Model tiers for AI model access control
 enum ModelTier {
-  FREE
-  REGISTERED
-  PREMIUM
+  PUBLIC    // Available to all logged-in users
+  PREMIUM   // Available only to premium subscribers
 
   @@schema("billing")
 }
@@ -283,7 +282,7 @@ model ModelConfig {
   name          String     @unique        // e.g., "kimi-k2:1t-cloud"
   displayName   String                    // e.g., "Kimi K2 1T Cloud"
   provider      String                    // "ollama" | "gemini" | "openai" | "deepseek"
-  tier          ModelTier                 // FREE | REGISTERED | PREMIUM
+  tier          ModelTier                 // PUBLIC | PREMIUM
   isActive      Boolean    @default(true)
   isDefault     Boolean    @default(false)
   maxTokens     Int?                      // override default max tokens per model
