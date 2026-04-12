@@ -2,7 +2,7 @@
 // Phase 6: Old services removed, now using new provider system
 
 // Core module and registry
-export { AIModule, type AIModuleOptions } from './src/ai.module';
+export { AIModule, type AIModuleOptions, MODELS_SERVICE } from './src/ai.module';
 export { AIProviderRegistry } from './src/registry';
 
 // Abstract base class

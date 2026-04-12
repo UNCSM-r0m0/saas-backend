@@ -1,8 +1,11 @@
 import { ModelTier } from '@prisma/client';
-import { IsString, IsOptional, IsBoolean, IsInt, IsArray, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsArray, IsEnum, Matches } from 'class-validator';
 
 export class CreateModelDto {
   @IsString()
+  @Matches(/^[a-zA-Z0-9._:-]+$/, {
+    message: 'Model name must be URL-safe (alphanumeric, dots, underscores, colons, hyphens only)',
+  })
   name: string;
 
   @IsString()

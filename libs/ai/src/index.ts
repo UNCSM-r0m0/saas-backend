@@ -11,6 +11,7 @@
  *   TokenCounterService,
  *   AIProviderRegistry,
  *   AIModule,
+ *   MODELS_SERVICE,
  * } from '@libs/ai';
  * ```
  */
@@ -32,3 +33,6 @@ export * from './registry';
 
 // Module
 export * from './ai.module';
+
+// Export MODELS_SERVICE explicitly
+export { MODELS_SERVICE } from './ai.module';

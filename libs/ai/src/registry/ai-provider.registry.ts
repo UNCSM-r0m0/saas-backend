@@ -8,15 +8,9 @@
  * This registry is used by ChatDomainService to route requests to the appropriate provider.
  */
 
-import { Injectable, Inject, OnModuleInit, Logger, Optional, InjectionToken } from '@nestjs/common';
+import { Injectable, Inject, OnModuleInit, Logger, Optional } from '@nestjs/common';
 import { AIProvider, AI_PROVIDER_REGISTRY } from '../interfaces';
 import { ModelConfig } from '@prisma/client';
-
-/**
- * Injection token for ModelsService.
- * Used to inject the models service without direct dependency.
- */
-export const MODELS_SERVICE = new InjectionToken<ModelsServiceInterface>('MODELS_SERVICE');
 
 /**
  * Service interface for loading models from database.
