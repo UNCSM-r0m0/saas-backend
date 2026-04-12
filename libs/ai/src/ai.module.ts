@@ -159,7 +159,7 @@ export class AIModule {
       ],
     };
 
-    // AIProviderRegistry with optional ModelsService injection
+    // AIProviderRegistry with optional ModelsService injection using forwardRef
     const registryServiceProvider: Provider = {
       provide: AIProviderRegistry,
       useFactory: (
