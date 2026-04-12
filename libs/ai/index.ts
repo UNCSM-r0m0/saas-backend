@@ -9,3 +9,7 @@ export { OpenAIService } from '../../src/integrations/ai/openai/openai.service';
 
 export { DeepSeekModule } from '../../src/integrations/ai/deepseek/deepseek.module';
 export { DeepSeekService } from '../../src/integrations/ai/deepseek/deepseek.service';
+
+// AI Provider Foundation Interfaces (Phase 1 of refactor-ai-providers)
+export * from './src/interfaces';
+export * from './src/token';
