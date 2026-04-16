@@ -53,28 +53,43 @@ export class ChatDomainService {
     let chat: any = null;
 
     if (userId && !chatId) {
-      chat = await this.prisma.chat.create({
-        data: {
+      // Legacy fallback: if client doesn't send a chatId, try to reuse a very recent chat
+      // to avoid duplicate conversations on rapid retries. Frontend now always sends UUIDs.
+      const title = this.generateTitle(dto.content);
+      const recentChat = await this.prisma.chat.findFirst({
+        where: {
+          ownerId: userId,
+          title,
+          createdAt: { gte: new Date(Date.now() - 5000) },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (recentChat) {
+        chat = recentChat;
+        chatId = recentChat.id;
+      } else {
+        chat = await this.prisma.chat.create({
+          data: {
+            ownerId: userId,
+            title,
+            isAnonymous: false,
+          },
+        });
+        chatId = chat.id;
+      }
+    } else if (!userId) {
+      chatId = 'anonymous';
+    } else if (userId && chatId) {
+      chat = await this.prisma.chat.upsert({
+        where: { id: chatId },
+        update: {},
+        create: {
+          id: chatId,
           ownerId: userId,
           title: this.generateTitle(dto.content),
           isAnonymous: false,
         },
       });
-      chatId = chat.id;
-    } else if (!userId) {
-      chatId = 'anonymous';
-    } else if (userId && chatId) {
-      chat = await this.prisma.chat.findUnique({ where: { id: chatId } });
-      if (!chat) {
-        chat = await this.prisma.chat.create({
-          data: {
-            id: chatId,
-            ownerId: userId,
-            title: this.generateTitle(dto.content),
-            isAnonymous: false,
-          },
-        });
-      }
     }
 
     if (userId && chatId !== 'anonymous') {
@@ -213,28 +228,43 @@ export class ChatDomainService {
     let chat: any = null;
 
     if (userId && !chatId) {
-      chat = await this.prisma.chat.create({
-        data: {
+      // Legacy fallback: if client doesn't send a chatId, try to reuse a very recent chat
+      // to avoid duplicate conversations on rapid retries. Frontend now always sends UUIDs.
+      const title = this.generateTitle(dto.content);
+      const recentChat = await this.prisma.chat.findFirst({
+        where: {
+          ownerId: userId,
+          title,
+          createdAt: { gte: new Date(Date.now() - 5000) },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (recentChat) {
+        chat = recentChat;
+        chatId = recentChat.id;
+      } else {
+        chat = await this.prisma.chat.create({
+          data: {
+            ownerId: userId,
+            title,
+            isAnonymous: false,
+          },
+        });
+        chatId = chat.id;
+      }
+    } else if (!userId) {
+      chatId = 'anonymous';
+    } else if (userId && chatId) {
+      chat = await this.prisma.chat.upsert({
+        where: { id: chatId },
+        update: {},
+        create: {
+          id: chatId,
           ownerId: userId,
           title: this.generateTitle(dto.content),
           isAnonymous: false,
         },
       });
-      chatId = chat.id;
-    } else if (!userId) {
-      chatId = 'anonymous';
-    } else if (userId && chatId) {
-      chat = await this.prisma.chat.findUnique({ where: { id: chatId } });
-      if (!chat) {
-        chat = await this.prisma.chat.create({
-          data: {
-            id: chatId,
-            ownerId: userId,
-            title: this.generateTitle(dto.content),
-            isAnonymous: false,
-          },
-        });
-      }
     }
 
     if (userId && chatId !== 'anonymous') {

@@ -1,6 +1,6 @@
 import { CHAT_EVENTS } from '../../libs/contracts/chat';
-import { UsageServiceController } from '../../apps/usage/src/usage-service.controller';
-import { BillingServiceController } from '../../apps/billing/src/billing-service.controller';
+import { UsageServiceController } from '../../apps/ms-usage/src/usage-service.controller';
+import { BillingServiceController } from '../../apps/ms-billing/src/billing-service.controller';
 
 describe('Chat event consumers', () => {
   it('usage consumer should increment usage from chat event', async () => {

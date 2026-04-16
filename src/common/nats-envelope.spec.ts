@@ -1,7 +1,7 @@
-import { AuthServiceController } from '../../apps/auth/src/auth-service.controller';
-import { UsersServiceController } from '../../apps/users/src/users-service.controller';
-import { BillingServiceController } from '../../apps/billing/src/billing-service.controller';
-import { UsageServiceController } from '../../apps/usage/src/usage-service.controller';
+import { AuthServiceController } from '../../apps/ms-auth/src/auth-service.controller';
+import { UsersServiceController } from '../../apps/ms-users/src/users-service.controller';
+import { BillingServiceController } from '../../apps/ms-billing/src/billing-service.controller';
+import { UsageServiceController } from '../../apps/ms-usage/src/usage-service.controller';
 
 describe('NATS v1 envelope compatibility', () => {
   it('auth health should return v1 envelope', () => {

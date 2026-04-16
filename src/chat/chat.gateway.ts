@@ -127,7 +127,7 @@ export class ChatGateway
   ) {
     this.logger.log(`🎯 MÉTODO handleSendMessage para ${client.id}`);
 
-    const chatId = data.chatId || `anonymous-${client.id}`;
+    const chatId = data.chatId || (client.user?.sub ? '' : `anonymous-${client.id}`);
     const message = (data.message ?? data.content ?? '').trim();
     const correlationId =
       typeof data.correlationId === 'string' && data.correlationId.trim()
