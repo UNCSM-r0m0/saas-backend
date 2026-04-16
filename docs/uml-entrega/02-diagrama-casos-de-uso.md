@@ -5,30 +5,30 @@
 Este diagrama identifica los **actores externos** que interactúan con el backend de R3Chat y los **casos de uso respaldados por endpoints o flujos reales** de la implementación actual. Se priorizan los procesos de autenticación, chat, sesiones, uso, suscripciones y administración; por eso se excluyen como foco principal funciones que hoy no tienen un flujo público completo, como la gestión de tenants o el manejo formal de adjuntos.
 
 ```mermaid
-usecaseDiagram
-    actor "Usuario anónimo" as UA
-    actor "Usuario registrado" as UR
-    actor "Usuario premium" as UP
-    actor "Administrador" as ADM
-    actor "Stripe" as ST
+flowchart LR
+    UA["Usuario anónimo"]
+    UR["Usuario registrado"]
+    UP["Usuario premium"]
+    ADM["Administrador"]
+    ST["Stripe"]
 
-    UR <|-- UP
-    UR <|-- ADM
+    UP -. "especialización" .-> UR
+    ADM -. "especialización" .-> UR
 
-    rectangle "R3Chat Backend" {
-        usecase "Registrar cuenta" as UC1
-        usecase "Iniciar sesión local" as UC2
-        usecase "Autenticarse con\nGoogle / GitHub" as UC3
-        usecase "Gestionar sesión autenticada\n(profile, refresh, logout)" as UC4
-        usecase "Enviar mensaje al chat" as UC5
-        usecase "Usar modelo premium\ndurante el envío" as UC6
-        usecase "Gestionar sesiones de chat\n(crear, listar, ver, renombrar, eliminar)" as UC7
-        usecase "Consultar estadísticas de uso" as UC8
-        usecase "Gestionar suscripción premium\n(checkout, confirmación, portal)" as UC9
-        usecase "Consultar estado de suscripción" as UC10
-        usecase "Administrar usuarios" as UC11
-        usecase "Validar cuota diaria\ny permisos del plan" as UC12
-    }
+    subgraph SYS["R3Chat Backend"]
+        UC1("Registrar cuenta")
+        UC2("Iniciar sesión local")
+        UC3("Autenticarse con Google / GitHub")
+        UC4("Gestionar sesión autenticada (profile, refresh, logout)")
+        UC5("Enviar mensaje al chat")
+        UC6("Usar modelo premium durante el envío")
+        UC7("Gestionar sesiones de chat (crear, listar, ver, renombrar, eliminar)")
+        UC8("Consultar estadísticas de uso")
+        UC9("Gestionar suscripción premium (checkout, confirmación, portal)")
+        UC10("Consultar estado de suscripción")
+        UC11("Administrar usuarios")
+        UC12("Validar cuota diaria y permisos del plan")
+    end
 
     UA --> UC1
     UA --> UC2
@@ -43,13 +43,11 @@ usecaseDiagram
     UR --> UC10
 
     UP --> UC6
-
     ADM --> UC11
-
     ST --> UC9
 
-    UC5 ..> UC12 : <<include>>
-    UC6 ..> UC5 : <<extend>>
+    UC5 -. "<<include>>" .-> UC12
+    UC6 -. "<<extend>>" .-> UC5
 ```
 
 ## Explicación de las relaciones
