@@ -1,132 +1,131 @@
-# Diagrama de Componentes y Despliegue
+# Diagramas de Componentes y Despliegue
 
 ## Diagrama de Componentes
 
 ### Descripción
-Este diagrama muestra la organización de los componentes de software de alto nivel. Se distingue el cliente (frontend y móvil), el API Gateway que centraliza el acceso, los microservicios especializados, la infraestructura interna (base de datos, caché, bus de mensajes) y los servicios externos (Stripe y proveedores de IA).
+
+Este diagrama presenta la arquitectura **backend-only** de R3Chat. Los clientes web o móvil se representan únicamente como **consumidores externos** del backend, mientras que el centro del sistema está formado por el **API Gateway**, los **microservicios NestJS**, la **infraestructura compartida** y los **servicios externos** de pagos e IA.
 
 ```mermaid
-flowchart TB
-    subgraph Cliente
-        WEB[Web App<br/>React / Vite]
-        MOB[App Móvil]
+flowchart LR
+    CLIENTE["Clientes web / móvil\n(consumidores externos)"]
+    STRIPE["Stripe"]
+
+    subgraph GATEWAY["API Gateway (NestJS)"]
+        HTTP["Controllers HTTP\nAuth, Chat, Stripe, Users"]
+        WS["ChatGateway +\nChatStreamEventsController"]
+        NATS_GW["Cliente / transporte NATS"]
     end
 
-    subgraph "API Gateway (NestJS)"
-        GW_HTTP[REST Controllers<br/>Auth / Chat / Stripe]
-        GW_WS[WebSocket Gateway<br/>ChatGateway]
-        NATS_CLIENT[NATS Client]
+    subgraph MICROS["Microservicios NestJS"]
+        AUTH["Auth Service"]
+        USERS["Users Service"]
+        CHAT["Chat Service"]
+        BILL["Billing Service"]
+        USAGE["Usage Service"]
     end
 
-    subgraph "Microservicios (NestJS + NATS)"
-        AUTH_MS[Auth Service]
-        USERS_MS[Users Service]
-        CHAT_MS[Chat Service]
-        BILL_MS[Billing Service]
-        USAGE_MS[Usage Service]
+    subgraph INFRA["Infraestructura compartida"]
+        NATS["NATS Server"]
+        DB[("PostgreSQL 16\nschemas: users, chat, billing, usage")]
+        REDIS[("Redis\n(soporte de despliegue)")]
     end
 
-    subgraph Infraestructura
-        DB[(PostgreSQL 16<br/>multi-schema)]
-        CACHE[(Redis)]
-        BUS[NATS Server<br/>+ JetStream]
+    subgraph IA["Proveedores de IA"]
+        OLLAMA["Ollama\n(host.docker.internal)"]
+        GEMINI["Google Gemini"]
+        OPENAI["OpenAI"]
+        DEEPSEEK["DeepSeek"]
     end
 
-    subgraph "Servicios Externos"
-        STRIPE[Stripe API]
-        OLLAMA[Ollama Local]
-        GEMINI[Google Gemini]
-        OPENAI[OpenAI API]
-        DEEPSEEK[DeepSeek API]
-    end
+    CLIENTE -->|HTTPS| HTTP
+    CLIENTE -->|WSS| WS
 
-    WEB -->|HTTPS / WSS| GW_HTTP
-    WEB -->|WSS| GW_WS
-    MOB -->|HTTPS| GW_HTTP
-    GW_HTTP --> NATS_CLIENT
-    GW_WS --> NATS_CLIENT
-    NATS_CLIENT --> BUS
-    BUS --> AUTH_MS
-    BUS --> USERS_MS
-    BUS --> CHAT_MS
-    BUS --> BILL_MS
-    BUS --> USAGE_MS
-    AUTH_MS --> DB
-    USERS_MS --> DB
-    CHAT_MS --> DB
-    CHAT_MS --> OLLAMA
-    CHAT_MS --> GEMINI
-    CHAT_MS --> OPENAI
-    CHAT_MS --> DEEPSEEK
-    BILL_MS --> DB
-    USAGE_MS --> DB
-    BILL_MS -->|Webhooks| STRIPE
-    GW_HTTP -->|Checkout| STRIPE
+    HTTP --> NATS_GW
+    WS --> NATS_GW
+    NATS_GW <--> NATS
+
+    NATS <--> AUTH
+    NATS <--> USERS
+    NATS <--> CHAT
+    NATS --> BILL
+    NATS --> USAGE
+
+    AUTH --> DB
+    USERS --> DB
+    CHAT --> DB
+    BILL --> DB
+    USAGE --> DB
+
+    CHAT --> OLLAMA
+    CHAT --> GEMINI
+    CHAT --> OPENAI
+    CHAT --> DEEPSEEK
+
+    HTTP -->|Checkout / Portal| STRIPE
+    STRIPE -->|Webhook| HTTP
 ```
+
+### Explicación
+
+- El **API Gateway** concentra los endpoints HTTP, el namespace WebSocket `/chat` y la recepción de eventos de streaming que luego retransmite al cliente.
+- Los microservicios `auth`, `users`, `chat`, `billing` y `usage` se coordinan mediante **NATS**, lo que desacopla el procesamiento de la interfaz pública.
+- **PostgreSQL** es la persistencia compartida del backend, separada lógicamente por esquemas para cada dominio.
+- **Redis** figura como infraestructura de despliegue porque está presente en `docker-compose.prod.yml`, aunque no es el eje de los flujos principales documentados aquí.
+- **Stripe** y los proveedores de IA aparecen fuera del backend porque son dependencias externas integradas por HTTP/API.
 
 ---
 
 ## Diagrama de Despliegue
 
 ### Descripción
-El diagrama de despliegue refleja la topología de infraestructura en un entorno productivo (VPS o Railway). Cada servicio corre en su propio contenedor Docker, orquestados con Docker Compose. El API Gateway es el único punto de entrada expuesto públicamente; los microservicios y la base de datos residen en una red interna.
+
+Este diagrama refleja la topología real de despliegue definida en `docker-compose.prod.yml`. El backend se distribuye en varios contenedores conectados a una red interna `backend`. El **gateway** es el único punto de entrada público; el resto de servicios se comunican internamente por **NATS** y persisten en **PostgreSQL**.
 
 ```mermaid
 flowchart TB
-    subgraph "VPS / Plataforma Cloud (Railway)"
-        subgraph "Container: API Gateway"
-            C_GW[Gateway NestJS<br/>Puerto 3000]
-        end
+    CLIENTES["Clientes externos"]
+    STRIPE_EXT["Stripe"]
+    OLLAMA_EXT["Ollama en host\nhost.docker.internal:11434"]
+    IA_CLOUD["Gemini / OpenAI / DeepSeek"]
 
-        subgraph "Container: Auth Service"
-            C_AUTH[Auth Microservice]
-        end
-
-        subgraph "Container: Users Service"
-            C_USERS[Users Microservice]
-        end
-
-        subgraph "Container: Chat Service"
-            C_CHAT[Chat Microservice]
-        end
-
-        subgraph "Container: Billing Service"
-            C_BILL[Billing Microservice]
-        end
-
-        subgraph "Container: Usage Service"
-            C_USAGE[Usage Microservice]
-        end
-
-        subgraph "Container: Mensajería"
-            C_NATS[NATS Server v2.10<br/>Puerto 4222]
-        end
-
-        subgraph "Container: Base de Datos"
-            C_DB[PostgreSQL 16]
-        end
-
-        subgraph "Container: Caché"
-            C_REDIS[Redis]
-        end
+    subgraph CLOUD["Entorno Docker Compose (red backend)"]
+        GATEWAY["Container: gateway\nNestJS API Gateway\nPuerto interno 3000\nPuerto host 3001"]
+        AUTH_C["Container: auth\nMicroservicio NATS"]
+        USERS_C["Container: users\nMicroservicio NATS"]
+        CHAT_C["Container: chat\nMicroservicio NATS"]
+        BILL_C["Container: billing\nMicroservicio NATS"]
+        USAGE_C["Container: usage\nMicroservicio NATS"]
+        NATS_C["Container: nats\nPuerto interno 4222"]
+        DB_C[("Container: postgres\nPostgreSQL 16")]
+        REDIS_C[("Container: redis\nRedis 7")]
     end
 
-    C_GW <-->|NATS TCP| C_NATS
-    C_AUTH <-->|NATS TCP| C_NATS
-    C_CHAT <-->|NATS TCP| C_NATS
-    C_BILL <-->|NATS TCP| C_NATS
-    C_USAGE <-->|NATS TCP| C_NATS
-    C_USERS <-->|NATS TCP| C_NATS
+    CLIENTES -->|HTTPS / WSS| GATEWAY
+    GATEWAY -->|Checkout / Portal| STRIPE_EXT
+    STRIPE_EXT -->|POST /api/stripe/webhook| GATEWAY
 
-    C_AUTH -->|SQL| C_DB
-    C_CHAT -->|SQL| C_DB
-    C_BILL -->|SQL| C_DB
-    C_USAGE -->|SQL| C_DB
-    C_USERS -->|SQL| C_DB
+    GATEWAY <--> NATS_C
+    AUTH_C <--> NATS_C
+    USERS_C <--> NATS_C
+    CHAT_C <--> NATS_C
+    BILL_C <--> NATS_C
+    USAGE_C <--> NATS_C
+
+    AUTH_C --> DB_C
+    USERS_C --> DB_C
+    CHAT_C --> DB_C
+    BILL_C --> DB_C
+    USAGE_C --> DB_C
+
+    CHAT_C --> OLLAMA_EXT
+    CHAT_C --> IA_CLOUD
 ```
 
-## Notas de arquitectura
-- **API Gateway como fachada:** centraliza autenticación, enrutamiento y documentación Swagger. Expone REST API en `/api` y WebSockets en `/chat`.
-- **Comunicación asíncrona:** todos los microservicios se comunican a través de NATS, desacoplando el frontend de la lógica interna y permitiendo escalar servicios de forma independiente.
-- **Persistencia compartida:** aunque los microservicios son independientes, comparten una misma instancia de PostgreSQL separada lógicamente por schemas (`users`, `chat`, `billing`, `usage`). Esta es una decisión de transición del monolito hacia arquitectura distribuida.
-- **Despliegue uniforme:** todos los contenedores se construyen desde la misma imagen base de NestJS, cambiando únicamente el entrypoint (`node dist/apps/<service>/main.js`).
+### Notas de despliegue
+
+- El contenedor `gateway` es el **único componente expuesto** hacia clientes externos; los demás servicios permanecen en la red interna.
+- El contenedor `chat` consume modelos locales a través de `host.docker.internal` para Ollama y también puede invocar proveedores cloud.
+- `billing` y `usage` no atienden tráfico público: reaccionan a eventos publicados por el microservicio `chat`.
+- El servicio `migrate` definido en el compose se omite del diagrama porque corresponde a una tarea operativa puntual de migración, no a un nodo de ejecución permanente.
+- `Redis` se mantiene en el despliegue real y por eso aparece en el diagrama, aunque su participación no sea central en los flujos UML principales de esta entrega.

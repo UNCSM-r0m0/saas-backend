@@ -1,47 +1,59 @@
-# Proyecto Final — Diagramas UML
+# Diagramas UML del Backend de R3Chat Asistente IA
 
 **Asignatura:** Ingeniería de Software II  
 **Carrera:** Ingeniería en Sistemas de Información  
+**Facultad:** Facultad de Ciencias y Tecnología  
 **Universidad:** Universidad Nacional Casimiro Sotelo Montenegro  
-**Docente:** [Nombre del docente]  
-**Fecha límite de entrega:** 16/04/2026
+**Docente / Facilitador:** Msc. Marcos Hernández Zamora  
+**Fecha de entrega:** 16/04/2026
 
 ---
 
-## Sistema: SaaS Platform — Chat Inteligente con IA
+## Integrantes del equipo
 
-### Integrantes del equipo
-- [Integrante 1]
-- [Integrante 2]
-- [Integrante 3]
-- [Integrante 4]
-
----
-
-## Descripción general del sistema
-
-La **SaaS Platform** es una aplicación de chat inteligente basada en arquitectura de **microservicios** que permite a usuarios interactuar con múltiples proveedores de Inteligencia Artificial (Ollama, Google Gemini, OpenAI y DeepSeek). El sistema está diseñado como un **monorepo NestJS** en transición de monolito a microservicios, utilizando **NATS** como bus de mensajes para la comunicación interna.
-
-### Funcionalidades principales
-- **Autenticación y autorización:** Registro e inicio de sesión local, OAuth con Google y GitHub, JWT con refresh tokens rotativos.
-- **Chat con IA:** Envío de mensajes vía REST, SSE y WebSockets con soporte de streaming en tiempo real.
-- **Gestión de conversaciones:** CRUD de sesiones de chat (crear, listar, renombrar, eliminar) con persistencia histórica.
-- **Suscripciones y pagos:** Integración con Stripe para checkout de suscripciones (Free, Registered, Premium).
-- **Rate limiting y uso:** Control de cuotas diarias por tier, contabilización de mensajes/tokens y auditoría de eventos de billing.
-- **Multi-tenancy:** Soporte de tenants para aislamiento organizacional.
-
-### Stack tecnológico
-- **Backend:** NestJS v11, TypeScript, Prisma ORM
-- **Base de datos:** PostgreSQL 16 (multi-schema: `users`, `chat`, `billing`, `usage`)
-- **Mensajería:** NATS Server v2.10 (+ JetStream)
-- **WebSockets:** Socket.io v4.8
-- **Pagos:** Stripe (Checkout + Webhooks)
-- **IA/LLMs:** Ollama (local), Google Gemini, OpenAI, DeepSeek
-- **Infraestructura:** Docker + Docker Compose, despliegue en Railway
+| Integrante | N.° de carnet |
+| --- | --- |
+| Lenin Gilberto Osorio Martínez | 24056861 |
+| Vidal Antonio Alvarado Martínez | 24056891 |
+| Heidi Melissa Corea Ramos | 24049241 |
+| Walter Anselmo Ortega Goussen | 24050661 |
+| Moisés David Espinoza Espinoza | 24055171 |
+| Guadalupe Dariana Zúniga Vicente | 24057001 |
 
 ---
+
+## Sistema documentado
+
+**Nombre del sistema:** R3Chat Asistente IA  
+**Alcance de esta entrega:** Backend productivo del sistema
+
+## Introducción
+
+El backend de **R3Chat Asistente IA** implementa una arquitectura basada en **NestJS**, con un **API Gateway** que expone endpoints HTTP y WebSocket, y un conjunto de microservicios especializados (`auth`, `users`, `chat`, `billing` y `usage`) que se comunican mediante **NATS**. La persistencia se resuelve con **PostgreSQL 16** y **Prisma ORM**, separando los dominios en los esquemas `users`, `chat`, `billing` y `usage`.
+
+Desde la perspectiva funcional, el backend permite **registro e inicio de sesión local**, **OAuth con Google y GitHub**, **gestión de sesiones de chat**, **envío de mensajes con streaming en tiempo real**, **control de cuotas por plan**, **suscripciones premium con Stripe** y **auditoría asíncrona de uso**. Además, el microservicio de chat puede orquestar respuestas con **Ollama**, **Google Gemini**, **OpenAI** y **DeepSeek**, según el modelo solicitado y el nivel de suscripción del usuario.
+
+Este documento se concentra **solo en el backend real de esta rama**, evitando incluir como capacidades principales elementos que no están expuestos hoy como flujo público del sistema. Por esa razón, los diagramas muestran a los clientes web o móvil únicamente como **consumidores externos**, y priorizan la coherencia entre código, esquema de datos, eventos NATS y topología de despliegue.
+
+## Alcance técnico documentado
+
+- API Gateway NestJS para **HTTP** y **WebSocket**.
+- Microservicios `auth`, `users`, `chat`, `billing` y `usage`.
+- Comunicación interna y publicación de eventos mediante **NATS**.
+- Persistencia con **PostgreSQL** y **Prisma ORM**.
+- Integración de suscripciones con **Stripe Checkout**, portal y webhooks.
+- Orquestación de modelos de IA con **Ollama**, **Gemini**, **OpenAI** y **DeepSeek**.
+- Consumo externo desde clientes web/móvil sin incorporarlos como parte del backend documentado.
+
+## Criterios aplicados en esta versión
+
+- Fidelidad estricta al código actual de la rama.
+- Consistencia entre diagramas, controllers, services y `prisma/schema.prisma`.
+- Eliminación de funcionalidades infladas o no verificadas como flujo principal.
+- Redacción formal para exportación posterior a PDF académico.
 
 ## Índice de diagramas
+
 1. [Diagrama de Casos de Uso](./02-diagrama-casos-de-uso.md)
 2. [Diagrama de Clases](./03-diagrama-de-clases.md)
 3. [Diagrama de Secuencia](./04-diagrama-de-secuencia.md)

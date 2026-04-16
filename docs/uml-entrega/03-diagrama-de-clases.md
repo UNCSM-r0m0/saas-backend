@@ -1,116 +1,196 @@
 # Diagrama de Clases
 
 ## Descripción
-El diagrama de clases modela las entidades principales del dominio de la **SaaS Platform**, extraídas directamente del esquema de Prisma. Se representan los atributos clave, los enums del sistema y las relaciones entre entidades (asociación, agregación y composición). Las entidades se organizan en cuatro schemas lógicos de PostgreSQL: `users`, `chat`, `billing` y `usage`.
+
+El siguiente diagrama combina las **entidades persistentes reales** del esquema Prisma con las **clases de aplicación** que orquestan los casos de uso principales del backend. De esta forma se cubren los tres elementos que pide la entrega: **atributos**, **métodos** y **relaciones**. Las entidades reflejan el dominio almacenado en PostgreSQL; las clases de servicio representan la lógica presente en el gateway HTTP/WS y en los microservicios.
 
 ```mermaid
 classDiagram
     direction TB
 
     class User {
-        +String id
-        +String email
-        +String? password
-        +String? firstName
-        +String? lastName
-        +String? avatar
-        +UserRole role
-        +AuthProvider provider
-        +String? providerId
-        +Boolean isActive
-        +Boolean emailVerified
-        +String? tenantId
-        +DateTime createdAt
-        +DateTime updatedAt
-        +DateTime? lastLoginAt
+        +id: String
+        +email: String
+        +password: String?
+        +firstName: String?
+        +lastName: String?
+        +role: UserRole
+        +provider: AuthProvider
+        +isActive: Boolean
+        +emailVerified: Boolean
+        +tenantId: String?
+        +createdAt: DateTime
+        +updatedAt: DateTime
     }
 
     class RefreshToken {
-        +String id
-        +String userId
-        +String tokenHash
-        +DateTime expiresAt
-        +DateTime? revokedAt
-        +DateTime createdAt
+        +id: String
+        +userId: String
+        +tokenHash: String
+        +expiresAt: DateTime
+        +revokedAt: DateTime?
+        +createdAt: DateTime
     }
 
     class Tenant {
-        +String id
-        +String name
-        +String slug
-        +Boolean isActive
-        +DateTime createdAt
-        +DateTime updatedAt
+        +id: String
+        +name: String
+        +slug: String
+        +isActive: Boolean
+        +createdAt: DateTime
+        +updatedAt: DateTime
     }
 
     class Subscription {
-        +String id
-        +String userId
-        +SubscriptionTier tier
-        +SubscriptionStatus status
-        +String? stripeCustomerId
-        +String? stripeSubscriptionId
-        +String? stripePriceId
-        +DateTime? stripeCurrentPeriodEnd
-        +DateTime createdAt
-        +DateTime updatedAt
+        +id: String
+        +userId: String
+        +tier: SubscriptionTier
+        +status: SubscriptionStatus
+        +stripeCustomerId: String?
+        +stripeSubscriptionId: String?
+        +stripePriceId: String?
+        +stripeCurrentPeriodEnd: DateTime?
+        +createdAt: DateTime
+        +updatedAt: DateTime
     }
 
     class Chat {
-        +String id
-        +String title
-        +Boolean isAnonymous
-        +String? ownerId
-        +DateTime createdAt
-        +DateTime updatedAt
+        +id: String
+        +title: String
+        +isAnonymous: Boolean
+        +ownerId: String?
+        +createdAt: DateTime
+        +updatedAt: DateTime
     }
 
     class Message {
-        +String id
-        +String chatId
-        +String? userId
-        +MessageRole role
-        +String content
-        +String model
-        +Int tokensUsed
-        +MessageStatus status
-        +String? streamId
-        +Json? meta
-        +String[] attachments
-        +DateTime createdAt
+        +id: String
+        +chatId: String
+        +userId: String?
+        +role: MessageRole
+        +content: String
+        +model: String
+        +tokensUsed: Int
+        +status: MessageStatus
+        +streamId: String?
+        +attachments: String[]
+        +createdAt: DateTime
     }
 
     class UsageRecord {
-        +String id
-        +String? userId
-        +DateTime date
-        +Int messageCount
-        +Int tokensUsed
-        +String? anonymousId
-        +DateTime createdAt
-        +DateTime updatedAt
+        +id: String
+        +userId: String?
+        +anonymousId: String?
+        +date: DateTime
+        +messageCount: Int
+        +tokensUsed: Int
+        +createdAt: DateTime
+        +updatedAt: DateTime
     }
 
     class UsageConsumedEvent {
-        +String id
-        +String eventId
-        +String eventType
-        +DateTime createdAt
+        +id: String
+        +eventId: String
+        +eventType: String
+        +createdAt: DateTime
     }
 
     class BillingUsageEvent {
-        +String id
-        +String eventId
-        +String source
-        +String eventType
-        +String? userId
-        +String? anonymousId
-        +String? conversationId
-        +String? messageId
-        +String? model
-        +Int tokensUsed
-        +DateTime occurredAt
-        +DateTime createdAt
+        +id: String
+        +eventId: String
+        +source: String
+        +eventType: String
+        +userId: String?
+        +anonymousId: String?
+        +conversationId: String?
+        +messageId: String?
+        +model: String?
+        +tokensUsed: Int
+        +occurredAt: DateTime
+        +createdAt: DateTime
+    }
+
+    class AuthService {
+        +validateUser(email, password)
+        +login(user)
+        +register(registerDto)
+        +validateOAuthUser(profile)
+        +refresh(refreshToken)
+        +revoke(refreshToken)
+    }
+
+    class ChatGateway {
+        +handleConnection(client)
+        +handleSendMessage(data, client)
+        +handleStopGeneration(data, client)
+        +handleJoinChat(data, client)
+        +handleNewChat(client, data)
+        +handleListChats(client)
+    }
+
+    class ChatClient {
+        +sendMessage(dto, userId, streamId, messageId, correlationId)
+        +createChat(userId, title)
+        +listChats(userId)
+        +getChat(chatId, userId)
+        +getChatHistory(chatId)
+        +getUsageStats(userId)
+    }
+
+    class ChatNatsController {
+        +sendMessage(payload)
+        +createChat(payload)
+        +listChats(payload)
+        +deleteChat(payload)
+        +getChat(payload)
+        +getUsageStats(payload)
+    }
+
+    class ChatDomainService {
+        +sendMessage(dto, userId)
+        +sendMessageStreaming(dto, userId, onChunk)
+        +createChat(ownerId, title)
+        +listChats(ownerId)
+        +renameChat(chatId, title, userId)
+        +deleteChat(chatId, userId)
+        +getChat(chatId, userId)
+        +getChatHistory(chatId)
+        +getUserUsageStats(userId)
+        +updateFirstMessageAndTitle(chatId, userId, newContent)
+    }
+
+    class SubscriptionsService {
+        +getOrCreateSubscription(userId)
+        +getUserLimits(tier)
+        +updateSubscriptionTier(userId, tier)
+        +cancelSubscription(userId)
+        +isSubscriptionActive(userId)
+        +handleStripeWebhook(event)
+    }
+
+    class UsageService {
+        +canSendMessage(userId, anonymousId)
+        +incrementMessageCount(tokensUsed, userId, anonymousId)
+        +getUserStats(userId)
+        +cleanupOldRecords()
+    }
+
+    class StripeService {
+        +createCheckoutSession(userId, priceId)
+        +confirmCheckoutSession(sessionId, requestUserId)
+        +createBillingPortalSession(userId)
+        +handleWebhook(event)
+        +getUserSubscription(userId)
+    }
+
+    class PrismaService {
+        +user
+        +chat
+        +message
+        +subscription
+        +usageRecord
+        +usageConsumedEvent
+        +billingUsageEvent
     }
 
     class UserRole {
@@ -157,13 +237,13 @@ classDiagram
         ERROR
     }
 
-    User "1" --> "*" RefreshToken : tiene
-    User "1" --> "0..1" Subscription : posee
-    User "*" --> "0..1" Tenant : pertenece
-    User "1" --> "*" Chat : propietario
-    User "1" --> "*" Message : envía
-    Chat "1" --> "*" Message : contiene
-    User "1" --> "*" UsageRecord : genera
+    User "1" *-- "0..*" RefreshToken : composición
+    User "1" *-- "0..1" Subscription : composición
+    Tenant "1" o-- "0..*" User : agregación
+    User "1" o-- "0..*" Chat : propietario
+    Chat "1" *-- "0..*" Message : composición
+    User "1" o-- "0..*" Message : autor
+    User "1" *-- "0..*" UsageRecord : uso diario
 
     User --> UserRole : usa
     User --> AuthProvider : usa
@@ -171,10 +251,24 @@ classDiagram
     Subscription --> SubscriptionStatus : usa
     Message --> MessageRole : usa
     Message --> MessageStatus : usa
+
+    ChatGateway ..> ChatClient : delega por NATS
+    ChatClient ..> ChatNatsController : invoca patrones chat.*
+    ChatNatsController ..> ChatDomainService : coordina caso de uso
+    ChatDomainService ..> SubscriptionsService : consulta plan
+    ChatDomainService ..> UsageService : valida cuota
+    ChatDomainService ..> PrismaService : persiste chats y mensajes
+    SubscriptionsService ..> PrismaService : persiste suscripciones
+    UsageService ..> PrismaService : persiste métricas
+    StripeService ..> PrismaService : actualiza suscripciones
+    StripeService ..> Subscription : sincroniza estado
+    AuthService ..> User : autentica usuario
 ```
 
 ## Notas técnicas
-- **Composición:** `RefreshToken` y `Subscription` dependen de la existencia de un `User`; si el usuario se elimina, estos registros se eliminan en cascada (`onDelete: Cascade`).
-- **Agregación:** `Message` pertenece a un `Chat`; la eliminación del chat borra todos sus mensajes en cascada.
-- **Asociación opcional:** un `Chat` puede ser anónimo (`ownerId` nullable), permitiendo interacciones sin autenticación previa.
-- **Idempotencia:** `UsageConsumedEvent` evita el doble conteo de eventos de uso consumidos por el microservicio `usage`.
+
+- Las clases `User`, `RefreshToken`, `Tenant`, `Subscription`, `Chat`, `Message`, `UsageRecord`, `UsageConsumedEvent` y `BillingUsageEvent` provienen directamente de `prisma/schema.prisma`.
+- Las composiciones reflejan el comportamiento del esquema real: por ejemplo, `RefreshToken` y `Subscription` dependen del ciclo de vida de `User`, y `Message` depende de `Chat`.
+- `UsageConsumedEvent` registra **idempotencia** para evitar doble conteo cuando el microservicio `usage` consume `chat.events.usage.incremented`.
+- `BillingUsageEvent` conserva **auditoría** tanto del evento `chat.events.message.created` como de `chat.events.usage.incremented` en el microservicio `billing`.
+- La relación con `Tenant` se conserva porque existe en el dominio persistente, aunque el flujo público de administración de tenants no se modela como caso de uso principal en esta entrega.
