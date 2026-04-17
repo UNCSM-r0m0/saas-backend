@@ -1,100 +1,54 @@
-# Diagrama de Secuencia
+﻿# Diagrama de Secuencia
 
 ## Descripción
 
-Este diagrama representa el **escenario clave del backend**: un **usuario autenticado** envía un mensaje por **WebSocket** y recibe una respuesta en **streaming**. El flujo sigue exactamente la cadena real de la implementación: `ChatGateway` recibe el evento, delega el envío al microservicio de chat mediante **NATS**, el microservicio procesa la lógica de dominio, publica eventos `chat.events.stream.*` y el gateway retransmite los eventos de vuelta al cliente como `responseStart`, `responseChunk` y `responseEnd`.
+Este diagrama representa, de forma **más simple y fácil de entender**, el escenario principal del sistema: un **usuario autenticado** envía un mensaje, el backend valida si puede atenderlo, consulta a la IA y devuelve la respuesta en tiempo real. Se omiten nombres internos demasiado técnicos para que cualquier lector pueda seguir el proceso sin conocer la arquitectura completa.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor U as Usuario autenticado
-    participant FE as Cliente web/móvil
-    participant GW as ChatGateway\n(API Gateway WS)
-    participant CC as ChatClient
-    participant CNC as ChatNatsController\n(Chat MS)
-    participant CDS as ChatDomainService
-    participant US as UsageService
-    participant SS as SubscriptionsService
-    participant PS as PrismaService
-    participant AI as Proveedor IA
-    participant CEP as ChatEventsPublisher
-    participant CSEC as ChatStreamEventsController\n(Gateway)
-    participant UMS as UsageServiceController\n(Usage MS)
-    participant BMS as BillingServiceController\n(Billing MS)
+    participant UI as Interfaz web o móvil
+    participant BE as Backend de R3Chat
+    participant VP as Validación de plan y cuota
+    participant HC as Historial de conversación
+    participant IA as Servicio de IA
+    participant REG as Registro de uso y conversación
 
-    U->>FE: Escribe mensaje y presiona enviar
-    FE->>GW: WS sendMessage({content, chatId, model})
-    GW->>GW: Genera correlationId, streamId y messageId
-    GW->>CC: sendMessage(dto, userId, streamId, messageId, correlationId)
-    CC->>CNC: NATS chat.sendMessage
+    U->>UI: Escribe un mensaje y presiona enviar
+    UI->>BE: Envía mensaje al chat
+    BE->>VP: Verifica cuota diaria y permisos del usuario
+    VP-->>BE: Confirma si puede continuar
 
-    CNC->>CEP: Emitir chat.events.stream.started
-    CEP-->>CSEC: Evento NATS stream.started
-    CSEC-->>FE: WS responseStart
+    alt El usuario no puede continuar
+        BE-->>UI: Devuelve aviso de límite o restricción del plan
+        UI-->>U: Muestra el error
+    else El usuario puede continuar
+        BE->>HC: Recupera o crea la conversación
+        HC-->>BE: Devuelve contexto e historial
+        BE->>REG: Guarda el mensaje del usuario
+        BE->>IA: Solicita la respuesta
 
-    CNC->>CDS: sendMessageStreaming(dto, userId, onChunk)
-    CDS->>US: canSendMessage(userId, anonymousId)
-    US-->>CDS: allowed, remaining, limit
-    CDS->>SS: getOrCreateSubscription(userId)
-    SS-->>CDS: subscription(tier)
-    CDS->>SS: getUserLimits(tier)
-    SS-->>CDS: messagesPerDay, maxTokensPerMessage
+        loop Mientras la respuesta se va generando
+            IA-->>BE: Envía parte de la respuesta
+            BE-->>UI: Muestra respuesta en tiempo real
+        end
 
-    alt chatId no provisto
-        CDS->>PS: create Chat(ownerId, title)
-        PS-->>CDS: chatId
-    else chatId provisto
-        CDS->>PS: findUnique Chat(chatId)
-        PS-->>CDS: chat
+        BE->>REG: Guarda la respuesta final y actualiza el uso
+        BE-->>UI: Indica que la respuesta terminó
+        UI-->>U: Muestra la respuesta completa
     end
-
-    CDS->>PS: create Message(USER, content, chatId)
-    PS-->>CDS: mensaje persistido
-    CDS->>PS: findMany Message(chatId)
-    PS-->>CDS: history[]
-
-    CDS->>AI: generateStreamingResponse(...)
-
-    loop Mientras llegan fragmentos
-        AI-->>CDS: chunk de texto
-        CDS-->>CNC: onChunk(chunk)
-        CNC->>CEP: Emitir chat.events.stream.chunk
-        CEP-->>CSEC: Evento NATS stream.chunk
-        CSEC-->>FE: WS responseChunk
-    end
-
-    CDS->>PS: create Message(ASSISTANT, fullContent, tokensUsed, model)
-    PS-->>CDS: assistantMessage
-    CDS-->>CNC: result(conversationId, message, remaining)
-
-    CNC->>CEP: Emitir chat.events.stream.finished
-    CEP-->>CSEC: Evento NATS stream.finished
-    CSEC-->>FE: WS responseEnd(fullContent)
-
-    par Auditoría del mensaje
-        CNC->>CEP: Emitir chat.events.message.created
-        CEP-->>BMS: Evento NATS message.created
-        BMS->>PS: create BillingUsageEvent
-    and Actualización de uso
-        CNC->>CEP: Emitir chat.events.usage.incremented
-        CEP-->>UMS: Evento NATS usage.incremented
-        UMS->>PS: find/create UsageConsumedEvent
-        UMS->>PS: upsert UsageRecord
-    and Auditoría del uso
-        CEP-->>BMS: Evento NATS usage.incremented
-        BMS->>PS: create BillingUsageEvent
-    end
-
-    CNC-->>CC: ChatSendMessageResponseV1
-    CC-->>GW: Operación completada
-    FE-->>U: Respuesta final mostrada en pantalla
 ```
 
 ## Explicación del flujo
 
-1. **Entrada en tiempo real:** el usuario entra por `sendMessage` en `ChatGateway`, que registra identificadores de correlación y delega el procesamiento al microservicio de chat.
-2. **Validación sincrónica:** antes de invocar la IA, `ChatDomainService` consulta `UsageService` y `SubscriptionsService` para validar la cuota diaria y el plan del usuario.
-3. **Persistencia del contexto:** si la conversación es autenticada, el backend crea o recupera el chat, guarda el mensaje del usuario y carga el historial desde PostgreSQL.
-4. **Streaming desacoplado:** el microservicio de chat no escribe directo al socket; publica `chat.events.stream.started`, `chat.events.stream.chunk` y `chat.events.stream.finished`, y luego `ChatStreamEventsController` los convierte en `responseStart`, `responseChunk` y `responseEnd` para el cliente.
-5. **Postprocesamiento asíncrono:** al finalizar, el sistema publica `chat.events.message.created` y `chat.events.usage.incremented`; `usage` actualiza métricas e idempotencia, mientras `billing` registra trazabilidad de auditoría.
-6. **Variante anónima:** el flujo de usuario anónimo usa `anonymousId` para el control de cuota, pero no persiste historial del mismo modo que una conversación autenticada.
+1. **Inicio de la interacción:** el usuario escribe un mensaje desde la aplicación y este se envía al backend.
+2. **Control de acceso:** antes de responder, el sistema revisa si el usuario todavía tiene cuota disponible y si el modelo solicitado corresponde a su plan.
+3. **Preparación del contexto:** el backend recupera la conversación actual o crea una nueva, para que la respuesta tenga continuidad.
+4. **Consulta a la IA:** el backend envía el mensaje al servicio de inteligencia artificial seleccionado.
+5. **Respuesta en tiempo real:** mientras la IA genera el contenido, la aplicación lo va mostrando por partes para que la experiencia sea más fluida.
+6. **Cierre del proceso:** cuando la respuesta termina, el sistema guarda la conversación y actualiza las métricas de uso del usuario.
+
+## Nota de simplificación
+
+Este diagrama fue redactado en un nivel **funcional** y no en nivel técnico interno. En el código real existen componentes adicionales de transporte, eventos y microservicios, pero aquí se agrupan para priorizar la claridad y la comprensión del proceso principal.
