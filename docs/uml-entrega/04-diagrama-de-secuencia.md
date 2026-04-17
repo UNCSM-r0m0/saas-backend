@@ -1,4 +1,4 @@
-﻿# Diagrama de Secuencia
+# Diagrama de Secuencia
 
 ## Descripción
 
