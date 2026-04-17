@@ -2,7 +2,7 @@
 
 ## Descripción
 
-Este diagrama representa, de forma **más simple y fácil de entender**, el escenario principal del sistema: un **usuario autenticado** envía un mensaje, el backend valida si puede atenderlo, consulta a la IA y devuelve la respuesta en tiempo real. Se omiten nombres internos demasiado técnicos para que cualquier lector pueda seguir el proceso sin conocer la arquitectura completa.
+Este diagrama representa, de forma **más simple y fácil de entender**, el escenario principal del sistema: un **usuario autenticado** envía un mensaje, el backend valida si puede atenderlo, consulta a la IA y devuelve la respuesta en tiempo real. También se incluye la situación en la que el usuario necesita **suscribirse al plan Pro/Premium** para poder usar funciones avanzadas.
 
 ```mermaid
 sequenceDiagram
@@ -11,6 +11,7 @@ sequenceDiagram
     participant UI as Interfaz web o móvil
     participant BE as Backend de R3Chat
     participant VP as Validación de plan y cuota
+    participant SUB as Suscripción Pro
     participant HC as Historial de conversación
     participant IA as Servicio de IA
     participant REG as Registro de uso y conversación
@@ -20,9 +21,18 @@ sequenceDiagram
     BE->>VP: Verifica cuota diaria y permisos del usuario
     VP-->>BE: Confirma si puede continuar
 
-    alt El usuario no puede continuar
+    alt El usuario no puede continuar por límite o plan
         BE-->>UI: Devuelve aviso de límite o restricción del plan
-        UI-->>U: Muestra el error
+        UI-->>U: Muestra el error o sugiere mejorar el plan
+
+        opt El usuario decide suscribirse a Pro/Premium
+            U->>UI: Elige suscribirse al plan Pro
+            UI->>SUB: Inicia proceso de suscripción
+            SUB-->>UI: Confirma suscripción exitosa
+            UI->>BE: Solicita continuar con plan actualizado
+            BE->>VP: Vuelve a validar permisos y plan
+            VP-->>BE: Confirma acceso Premium
+        end
     else El usuario puede continuar
         BE->>HC: Recupera o crea la conversación
         HC-->>BE: Devuelve contexto e historial
@@ -44,10 +54,11 @@ sequenceDiagram
 
 1. **Inicio de la interacción:** el usuario escribe un mensaje desde la aplicación y este se envía al backend.
 2. **Control de acceso:** antes de responder, el sistema revisa si el usuario todavía tiene cuota disponible y si el modelo solicitado corresponde a su plan.
-3. **Preparación del contexto:** el backend recupera la conversación actual o crea una nueva, para que la respuesta tenga continuidad.
-4. **Consulta a la IA:** el backend envía el mensaje al servicio de inteligencia artificial seleccionado.
-5. **Respuesta en tiempo real:** mientras la IA genera el contenido, la aplicación lo va mostrando por partes para que la experiencia sea más fluida.
-6. **Cierre del proceso:** cuando la respuesta termina, el sistema guarda la conversación y actualiza las métricas de uso del usuario.
+3. **Posible mejora de plan:** si el usuario intenta usar una función restringida, la plataforma puede mostrarle la opción de **suscribirse al plan Pro/Premium** y luego volver a validar sus permisos.
+4. **Preparación del contexto:** cuando el acceso ya está permitido, el backend recupera la conversación actual o crea una nueva, para que la respuesta tenga continuidad.
+5. **Consulta a la IA:** el backend envía el mensaje al servicio de inteligencia artificial seleccionado.
+6. **Respuesta en tiempo real:** mientras la IA genera el contenido, la aplicación lo va mostrando por partes para que la experiencia sea más fluida.
+7. **Cierre del proceso:** cuando la respuesta termina, el sistema guarda la conversación y actualiza las métricas de uso del usuario.
 
 ## Nota de simplificación
 
